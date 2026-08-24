@@ -290,7 +290,18 @@ Planned Azure allocation:
 10.60.254.0/27   VPN Gateway
 ```
 
-The GoldenGate subnet has **not yet been created**.
+The GoldenGate subnet has now been created and associated with a dedicated Network Security Group.
+
+Current GoldenGate network objects:
+
+```text
+snet-goldengate
+10.60.30.0/24
+
+nsg-goldengate-lab
+```
+
+The subnet was created as a private subnet with no default outbound access, with no NAT gateway, route table, service endpoint, or subnet delegation configured at creation time.
 
 ### Selected GoldenGate Deployment Model
 
@@ -377,7 +388,8 @@ vnet-enterprise-data-platform-lab
 │       Standard_D2as_v7
 │
 ├── snet-goldengate
-│   10.60.30.0/24 [PLANNED]
+│   10.60.30.0/24
+│   └── nsg-goldengate-lab
 │
 └── GatewaySubnet
     10.60.254.0/27
@@ -429,13 +441,21 @@ Google Cloud
 * [x] `LabTestDB` data file validated on `F:\data\LabTestDB.mdf`
 * [x] `LabTestDB` log file validated on `G:\log\LabTestDB_log.ldf`
 * [x] VM auto-shutdown enabled for 11:00 PM Central Time
+* [x] `snet-goldengate` created
+* [x] GoldenGate subnet CIDR validated as `10.60.30.0/24`
+* [x] GoldenGate subnet created as private subnet with no default outbound access
+* [x] `nsg-goldengate-lab` created
+* [x] `nsg-goldengate-lab` associated to `snet-goldengate`
+* [x] Inbound SSH rule created from Azure management subnet to GoldenGate subnet
+* [x] Outbound SQL Server rule created from GoldenGate subnet to Azure SQL Server TCP `1433`
+* [x] OCI security list ingress rule created from Azure GoldenGate subnet `10.60.30.0/24` to Oracle listener TCP `1521`
+* [x] Azure outbound Oracle listener rule created from GoldenGate subnet `10.60.30.0/24` to OCI Oracle `10.50.10.178` on TCP `1521`
 
 ### Not Yet Deployed
 
-* [ ] Azure outbound connectivity design
 * [ ] OCI ↔ Azure VPN
 * [ ] GoldenGate
-* [ ] Dedicated GoldenGate hub subnet / compute
+* [ ] Dedicated GoldenGate hub compute
 * [ ] GoldenGate remote capture from OCI Oracle
 * [ ] GoldenGate remote apply to Azure SQL Server
 * [ ] Oracle → SQL Server migration/CDC
@@ -478,7 +498,355 @@ Validated NSG behavior includes:
 * Explicit deny rule ahead of broad VNet inbound defaults
 * No unrestricted Internet exposure for SQL Server TCP `1433`
 
-Next connectivity work will determine whether to deploy a site-to-site VPN immediately or use a lower-cost interim path while preserving Azure trial credits.
+The GoldenGate subnet and its dedicated NSG are now deployed. The Azure outbound Oracle listener rule from the GoldenGate subnet to the OCI Oracle host on TCP `1521` has also been implemented. The next major step is OCI ↔ Azure routed connectivity / VPN implementation.
+
+OCI-side listener access has now also been implemented in the default security list for `Rotez_hybrid-lab-vcn`:
+
+```text
+Source CIDR:       10.60.30.0/24
+Protocol:          TCP
+Source port:       All
+Destination port:  1521
+Description:       Allow-Azure-GoldenGate-To-Oracle
+```
+
+The matching Azure outbound control has now been implemented from `snet-goldengate` to the OCI Oracle private IP `10.50.10.178` on TCP `1521`.
+
+### OCI Security List Implementation Detail
+
+Navigation used:
+
+```text
+OCI Console
+-> Networking
+-> Virtual Cloud Networks
+-> Rotez_hybrid-lab-vcn
+-> Security
+-> Default Security List for Rotez_hybrid-lab-vcn
+-> Security rules
+-> Add Ingress Rules
+```
+
+Configured rule:
+
+```text
+Stateless:              No
+Source Type:            CIDR
+Source CIDR:            10.60.30.0/24
+IP Protocol:            TCP
+Source Port Range:      All
+Destination Port Range: 1521
+Description:            Allow-Azure-GoldenGate-To-Oracle
+```
+
+Validation result:
+
+```text
+Ingress rule present:
+10.60.30.0/24 -> TCP 1521
+```
+
+---
+
+## 11A. Step-by-Step Build Record — Azure GoldenGate Network Preparation
+
+This section preserves the exact implementation sequence used in the Azure portal so the environment can be rebuilt later.
+
+### Step 1 — Open the Azure VNet
+
+Navigate to:
+
+```text
+Azure Portal
+-> Virtual networks
+-> vnet-enterprise-data-platform-lab
+```
+
+Validated VNet:
+
+```text
+Name:          vnet-enterprise-data-platform-lab
+Address space: 10.60.0.0/16
+Region:        East US
+```
+
+Existing subnets before GoldenGate subnet creation:
+
+```text
+GatewaySubnet       10.60.254.0/27
+snet-management     10.60.10.0/24
+snet-database       10.60.20.0/24
+```
+
+### Step 2 — Create the GoldenGate subnet
+
+Navigate to:
+
+```text
+vnet-enterprise-data-platform-lab
+-> Settings
+-> Subnets
+-> + Subnet
+```
+
+Enter:
+
+```text
+Subnet purpose:     Default
+Name:               snet-goldengate
+IPv4 address space: 10.60.0.0/16
+Starting address:   10.60.30.0
+Size:               /24
+```
+
+Azure resolves the subnet range as:
+
+```text
+10.60.30.0 - 10.60.30.255
+```
+
+Keep:
+
+```text
+Private subnet:          Enabled
+NAT gateway:             None
+Network security group:  None
+Route table:             None
+Service endpoints:       None
+Subnet delegation:       None
+```
+
+Click:
+
+```text
+Add
+```
+
+Validation result:
+
+```text
+GatewaySubnet       10.60.254.0/27
+snet-management     10.60.10.0/24
+snet-database       10.60.20.0/24
+snet-goldengate     10.60.30.0/24
+```
+
+### Step 3 — Create the GoldenGate Network Security Group
+
+Navigate to:
+
+```text
+Azure Portal
+-> Network security groups
+-> Create
+```
+
+Enter:
+
+```text
+Subscription:    Azure subscription 1
+Resource group:  rg-enterprise-data-platform-lab
+Name:            nsg-goldengate-lab
+Region:          East US
+```
+
+Then:
+
+```text
+Review + create
+-> Validation passed
+-> Create
+```
+
+No custom security rules were added during NSG creation.
+
+### Step 4 — Associate the NSG with the GoldenGate subnet
+
+Navigate to:
+
+```text
+nsg-goldengate-lab
+-> Settings
+-> Subnets
+-> Associate
+```
+
+Select:
+
+```text
+Virtual network: vnet-enterprise-data-platform-lab
+Subnet:          snet-goldengate
+```
+
+Validation:
+
+```text
+NSG:      nsg-goldengate-lab
+Subnet:   snet-goldengate
+CIDR:     10.60.30.0/24
+VNet:     vnet-enterprise-data-platform-lab
+```
+
+### Step 5 — Create management SSH inbound rule
+
+Purpose:
+
+Allow Linux administration of the future GoldenGate hub only from the Azure management subnet.
+
+Navigate to:
+
+```text
+nsg-goldengate-lab
+-> Inbound security rules
+-> + Add
+```
+
+Configure:
+
+```text
+Source:                 IP Addresses
+Source IP/CIDR:         10.60.10.0/24
+Source port ranges:     *
+Destination:            IP Addresses
+Destination IP/CIDR:    10.60.30.0/24
+Service:                Custom
+Destination port:       22
+Protocol:               TCP
+Action:                 Allow
+Priority:               100
+Name:                   Allow-SSH-From-Management
+```
+
+Validated deployed rule:
+
+```text
+Priority:     100
+Name:         Allow-SSH-From-Management
+Port:         22
+Protocol:     TCP
+Source:       10.60.10.0/24
+Destination:  10.60.30.0/24
+Action:       Allow
+```
+
+### Step 6 — Create outbound SQL Server rule
+
+Purpose:
+
+Allow the GoldenGate hub to connect to the Azure SQL Server listener for remote apply and later reverse-direction testing.
+
+Navigate to:
+
+```text
+nsg-goldengate-lab
+-> Outbound security rules
+-> + Add
+```
+
+Configure:
+
+```text
+Source:                 IP Addresses
+Source IP/CIDR:         10.60.30.0/24
+Source port ranges:     *
+Destination:            IP Addresses
+Destination IP:         10.60.20.4
+Service:                Custom
+Destination port:       1433
+Protocol:               TCP
+Action:                 Allow
+Priority:               100
+Name:                   Allow-SQL-To-AzureDB
+```
+
+Validated deployed rule:
+
+```text
+Priority:     100
+Name:         Allow-SQL-To-AzureDB
+Port:         1433
+Protocol:     TCP
+Source:       10.60.30.0/24
+Destination:  10.60.20.4
+Action:       Allow
+```
+
+### Step 7 — Create GoldenGate to OCI Oracle outbound rule
+
+Navigate to:
+
+```text
+nsg-goldengate-lab
+-> Outbound security rules
+-> + Add
+```
+
+Configured:
+
+```text
+Source:                 IP Addresses
+Source IP/CIDR:         10.60.30.0/24
+Source port ranges:     *
+Destination:            IP Addresses
+Destination IP:         10.50.10.178
+Service:                Custom
+Destination port:       1521
+Protocol:               TCP
+Action:                 Allow
+Priority:               110
+Name:                   Allow-Oracle-To-OCI
+```
+
+Purpose:
+
+```text
+GoldenGate Hub -> OCI Oracle listener TCP 1521
+```
+
+Validated deployed rule:
+
+```text
+Priority:     110
+Name:         Allow-Oracle-To-OCI
+Port:         1521
+Protocol:     TCP
+Source:       10.60.30.0/24
+Destination:  10.50.10.178
+Action:       Allow
+```
+
+This is the future remote-capture database path. The NSG rule alone does not establish cross-cloud reachability; OCI ↔ Azure routing/VPN, OCI security controls, Oracle listener configuration, and host firewalls must also permit the flow.
+
+### Security principles used during this build
+
+```text
+Do not expose TCP 22 to 0.0.0.0/0.
+Do not expose SQL Server TCP 1433 to 0.0.0.0/0.
+Do not expose Oracle TCP 1521 to 0.0.0.0/0.
+Use private CIDRs and least-privilege source/destination rules.
+Use the management subnet as the administrative trust boundary.
+Keep database and GoldenGate workloads in separate subnets and NSGs.
+```
+
+Current GoldenGate network-security state:
+
+```text
+Azure Management 10.60.10.0/24
+        |
+        | TCP 22
+        v
+GoldenGate subnet 10.60.30.0/24
+        |
+        | TCP 1433
+        v
+Azure SQL Server 10.60.20.4
+
+GoldenGate subnet 10.60.30.0/24
+        |
+        | TCP 1521 over OCI-Azure routed connectivity
+        v
+OCI Oracle 10.50.10.178
+```
 
 ---
 
