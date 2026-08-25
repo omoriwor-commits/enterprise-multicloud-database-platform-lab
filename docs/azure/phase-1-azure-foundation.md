@@ -515,7 +515,26 @@ Google Cloud
 
 ## 11. Immediate Next Step
 
-Validate the reverse database path from Azure toward the OCI Oracle listener, then move into dedicated GoldenGate hub deployment.
+Deploy the dedicated GoldenGate hub compute instance into `snet-goldengate` (`10.60.30.0/24`). Because the OCI security list and Azure GoldenGate NSG rules are already scoped to the GoldenGate subnet, the correct reverse-path validation must originate from that subnet rather than from the Azure SQL Server VM.
+
+After the GoldenGate hub is deployed, validate:
+
+```text
+GoldenGate hub (10.60.30.0/24)
+        -> IPSec / BGP
+        -> OCI Oracle 10.50.10.178:1521
+```
+
+Success criteria:
+
+* GoldenGate VM receives a private IP in `10.60.30.0/24`
+* SSH administration works only from the approved management path
+* OCI Oracle listener is reachable on TCP `1521`
+* Azure SQL Server is reachable on TCP `1433`
+* No public database listener exposure is introduced
+* Host firewalls are validated after NSG/security-list validation
+
+Once both database endpoints are reachable from the GoldenGate hub, proceed with GoldenGate Microservices installation, credential configuration, and remote-capture/remote-apply setup.
 
 Current Azure database-tier controls include:
 
