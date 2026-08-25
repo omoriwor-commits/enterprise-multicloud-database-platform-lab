@@ -1,6 +1,6 @@
 # Enterprise Data Platform Lab — Multi-Cloud Migration & Replication Plan
 
-**Checkpoint Date:** August 23, 2026
+**Checkpoint Date:** August 25, 2026
 **Project:** Enterprise Data Platform / Multi-Cloud Migration & Replication Lab
 
 ## 1. Target Architecture
@@ -236,7 +236,16 @@ Purpose:
 * Reserved for future Azure VPN Gateway
 * OCI ↔ Azure private connectivity
 
-The Azure VPN Gateway itself has **not** been deployed yet because it is a billable resource.
+The Azure VPN Gateway has now been deployed for the OCI ↔ Azure Site-to-Site VPN lab.
+
+```text
+Gateway:      vng-enterprise-data-platform-lab
+SKU:          VpnGw1AZ
+VPN type:     Route-based
+Azure ASN:    65515
+Azure APIPA:  169.254.21.2
+Public IP:    48.206.217.77
+```
 
 ---
 
@@ -369,7 +378,7 @@ Rotez_hybrid-lab-vcn
         10.50.10.178
         Oracle Database
             │
-            │ Future VPN / routed connectivity
+            │ OCI ↔ Azure Site-to-Site VPN / BGP
             ▼
 Azure
 vnet-enterprise-data-platform-lab
@@ -393,7 +402,12 @@ vnet-enterprise-data-platform-lab
 │
 └── GatewaySubnet
     10.60.254.0/27
-    └── Azure VPN Gateway [NOT DEPLOYED]
+    └── vng-enterprise-data-platform-lab
+        SKU: VpnGw1AZ
+        VPN type: Route-based
+        Azure ASN: 65515
+        Azure APIPA: 169.254.21.2
+        Public IP: 48.206.217.77
 
 AWS
 10.70.0.0/16
@@ -450,10 +464,36 @@ Google Cloud
 * [x] Outbound SQL Server rule created from GoldenGate subnet to Azure SQL Server TCP `1433`
 * [x] OCI security list ingress rule created from Azure GoldenGate subnet `10.60.30.0/24` to Oracle listener TCP `1521`
 * [x] Azure outbound Oracle listener rule created from GoldenGate subnet `10.60.30.0/24` to OCI Oracle `10.50.10.178` on TCP `1521`
+* [x] Azure Local Network Gateway `lng-oci-tunnel1` created for OCI Tunnel 1
+* [x] Azure VPN connection `conn-azure-to-oci-tunnel1` created with OCI-generated PSK
+* [x] OCI IPSec Tunnel 1 status validated Up
+* [x] OCI IPv4 BGP status validated Up
+* [x] Azure VPN Gateway / VPN connection health validated Healthy
+* [x] Azure BGP peer to OCI validated Connected
+* [x] Azure learned OCI route `10.50.0.0/16` over eBGP
+* [x] Azure advertised `10.60.0.0/16` toward OCI
+* [x] Database NSG rule `Allow-SQL-From-OCI-Oracle` created for `10.50.10.178/32 -> 10.60.20.4:1433`
+* [x] SQL Server TCP/IP protocol validated Enabled
+* [x] SQL Server static TCP port validated as `1433`
+* [x] SQL Server listener validated on TCP `1433`
+* [x] End-to-end OCI Oracle VM -> Azure SQL Server TCP `1433` connectivity validated successfully
 
 ### Not Yet Deployed
 
-* [ ] OCI ↔ Azure VPN
+* [x] OCI ↔ Azure Site-to-Site VPN established
+* [x] Azure VPN Gateway deployed
+* [x] OCI DRG `drg-azure-hybrid-lab` created
+* [x] OCI VCN attachment `att-rotez-hybrid-lab-vcn` created
+* [x] OCI route `10.60.0.0/16 -> drg-azure-hybrid-lab` created
+* [x] OCI CPE `cpe-azure-vpn-gateway` created for Azure VPN public IP
+* [x] OCI Site-to-Site VPN `ipsec-oci-azure-lab` created
+* [x] OCI BGP tunnel `Azure-Tunnel-1` created with IKEv2
+* [x] Azure Local Network Gateway for OCI Tunnel 1
+* [x] Azure VPN connection using OCI-generated PSK
+* [x] IPSec tunnel status Up
+* [x] BGP session status Up
+* [x] BGP route exchange validated in Azure
+* [x] OCI Oracle VM -> Azure SQL Server TCP `1433` private connectivity validated
 * [ ] GoldenGate
 * [ ] Dedicated GoldenGate hub compute
 * [ ] GoldenGate remote capture from OCI Oracle
@@ -475,7 +515,7 @@ Google Cloud
 
 ## 11. Immediate Next Step
 
-Move into cross-cloud connectivity preparation between OCI and Azure.
+Validate the reverse database path from Azure toward the OCI Oracle listener, then move into dedicated GoldenGate hub deployment.
 
 Current Azure database-tier controls include:
 
@@ -495,10 +535,23 @@ Validated NSG behavior includes:
 * RDP from Azure management subnet `10.60.10.0/24`
 * SQL Server TCP `1433` from Azure management subnet `10.60.10.0/24`
 * Temporary RDP from the administrator public IP using a `/32` source rule
+* SQL Server TCP `1433` from OCI Oracle VM `10.50.10.178/32`
 * Explicit deny rule ahead of broad VNet inbound defaults
 * No unrestricted Internet exposure for SQL Server TCP `1433`
 
-The GoldenGate subnet and its dedicated NSG are now deployed. The Azure outbound Oracle listener rule from the GoldenGate subnet to the OCI Oracle host on TCP `1521` has also been implemented. The next major step is OCI ↔ Azure routed connectivity / VPN implementation.
+The GoldenGate subnet and its dedicated NSG are deployed. The Azure outbound Oracle listener rule from the GoldenGate subnet to the OCI Oracle host on TCP `1521` has also been implemented. OCI ↔ Azure routed connectivity is now established: Azure VPN Gateway, OCI DRG, VCN attachment, OCI route, CPE, OCI Site-to-Site VPN, Azure Local Network Gateway, and Azure VPN connection are all deployed. IPSec and IPv4 BGP are Up, Azure VPN diagnostics report the connection as Healthy, Azure learns the OCI `10.50.0.0/16` route, and Azure advertises `10.60.0.0/16` toward OCI.
+
+The OCI Oracle VM to Azure SQL Server database path has also been validated end to end:
+
+```text
+Source:      10.50.10.178
+Destination: 10.60.20.4
+Protocol:    TCP
+Port:        1433
+Result:      SUCCESS
+```
+
+SQL Server TCP/IP is enabled, `IPAll` is configured with static TCP port `1433`, and the SQL Server process is listening on TCP `1433`.
 
 OCI-side listener access has now also been implemented in the default security list for `Rotez_hybrid-lab-vcn`:
 
@@ -544,6 +597,115 @@ Validation result:
 ```text
 Ingress rule present:
 10.60.30.0/24 -> TCP 1521
+```
+
+### OCI ↔ Azure VPN Implementation Detail
+
+Azure VPN Gateway created:
+
+```text
+Name:          vng-enterprise-data-platform-lab
+SKU:           VpnGw1AZ
+VPN type:      Route-based
+VNet:          vnet-enterprise-data-platform-lab
+GatewaySubnet: 10.60.254.0/27
+BGP:           Enabled
+Azure ASN:     65515
+Azure APIPA:   169.254.21.2
+Public IP:     48.206.217.77
+```
+
+OCI DRG created:
+
+```text
+Name: drg-azure-hybrid-lab
+```
+
+OCI VCN attachment created:
+
+```text
+Attachment:     att-rotez-hybrid-lab-vcn
+VCN:            Rotez_hybrid-lab-vcn
+VCN route type: VCN CIDR blocks
+State:          Attached
+```
+
+OCI route added:
+
+```text
+Destination: 10.60.0.0/16
+Target:      drg-azure-hybrid-lab
+Description: Route-To-Azure-VNet
+```
+
+OCI CPE created to represent the Azure VPN Gateway:
+
+```text
+Name:      cpe-azure-vpn-gateway
+IP:        48.206.217.77
+Vendor:    Other
+```
+
+OCI Site-to-Site VPN created:
+
+```text
+Name:        ipsec-oci-azure-lab
+DRG:         drg-azure-hybrid-lab
+Static route: 0.0.0.0/0
+VPN version: v2
+```
+
+OCI Tunnel 1 configuration:
+
+```text
+Name:                     Azure-Tunnel-1
+Routing type:             BGP dynamic routing
+IKE version:              IKEv2
+Oracle VPN public IP:     131.186.7.140
+Oracle BGP ASN:           31898
+Customer/Azure BGP ASN:   65515
+CPE/Azure inside IP:      169.254.21.2/30
+Oracle inside IP:         169.254.21.1/30
+IPSec status:             Up
+IPv4 BGP status:          Up
+```
+
+The OCI-generated shared secret is intentionally not recorded in this runbook. It must be stored privately and entered into the Azure VPN connection configuration.
+
+Azure peer objects created:
+
+```text
+Local Network Gateway: lng-oci-tunnel1
+VPN Connection:        conn-azure-to-oci-tunnel1
+IKE:                   IKEv2
+BGP:                   Enabled
+Azure BGP address:     169.254.21.2
+OCI BGP peer:          169.254.21.1
+```
+
+Azure BGP validation:
+
+```text
+Peer status: Connected
+OCI route learned by Azure: 10.50.0.0/16
+Azure route advertised to OCI: 10.60.0.0/16
+```
+
+Azure Network Watcher VPN troubleshoot validation:
+
+```text
+VPN gateway: Healthy
+VPN connection: Healthy
+```
+
+Database-path validation:
+
+```text
+OCI Oracle VM 10.50.10.178
+        -> IPSec / BGP
+        -> Azure SQL Server 10.60.20.4:1433
+
+TCP 1433 SUCCESS
 ```
 
 ---
