@@ -7,44 +7,43 @@
 
 ```text
 OCI
-Oracle Database
+Oracle AI Database 26ai
 10.50.0.0/16
       |
-      |  Route-based IPsec/IKEv2 + BGP
+      | Route-based IPsec/IKEv2 + BGP
       v
 Azure
 Dedicated Oracle GoldenGate 26ai Hub
-10.60.30.0/24
+10.60.30.4 / snet-goldengate 10.60.30.0/24
       |
-      |  Remote apply / later reverse capture
+      | Remote apply / later reverse capture
       v
 Azure SQL Server 2022
-10.60.20.0/24
+10.60.20.4 / snet-database 10.60.20.0/24
       |
-      |  Later migration / replication
+      | Later migration / replication
       v
-AWS
-PostgreSQL Platform
+AWS PostgreSQL
 10.70.0.0/16
       |
-      |  Later expansion / comparison
+      | Later comparison / expansion
       v
-Google Cloud
-PostgreSQL Platform
+Google Cloud PostgreSQL
 10.80.0.0/16
 ```
 
-GoldenGate deployment model:
+Selected GoldenGate deployment model:
 
 ```text
 Model 4 — Dedicated hub with remote capture and remote apply
 ```
 
-The lab will practice:
+The lab is designed to practice:
 
 - Unidirectional CDC
 - Bidirectional / active-active-style replication patterns
 - Failure, restart, lag, conflict, reconciliation, cutover, and rollback scenarios
+- Evidence-based network/database/platform troubleshooting
 
 ---
 
@@ -73,7 +72,7 @@ Subnet CIDR:    10.50.10.0/24
 Oracle VM:      10.50.10.178
 ```
 
-The OCI VNIC currently uses the subnet security list plus the Oracle Linux host firewall.
+The OCI VNIC currently relies on the subnet security list plus the Oracle Linux host firewall.
 
 ### Oracle Source Database Baseline
 
@@ -90,6 +89,7 @@ FORCE LOGGING:                   YES
 enable_goldengate_replication:   TRUE
 minimal supplemental logging:    YES
 Oracle listener:                 TCP 1521
+GGADMIN account:                 OPEN
 ```
 
 The Oracle listener advertises `pdb23ai` and is reachable privately from the Azure GoldenGate VM.
@@ -98,11 +98,11 @@ The Oracle listener advertises `pdb23ai` and is reachable privately from the Azu
 
 ## 3. Azure Foundation and Cost Controls
 
-Resource group:
-
 ```text
-rg-enterprise-data-platform-lab
-Region: East US
+Resource group: rg-enterprise-data-platform-lab
+Region:         East US
+Budget:         $50/month
+Alerts:         50%, 75%, 90%, 100%
 ```
 
 Tags:
@@ -114,15 +114,7 @@ Workload    = CrossCloudMigration
 ManagedBy   = Manual
 ```
 
-Budget:
-
-```text
-budget-enterprise-data-platform-lab
-Monthly budget: $50
-Thresholds: 50%, 75%, 90%, 100%
-```
-
-Paid networking services intentionally not used unless required:
+Paid services intentionally not used unless required:
 
 ```text
 Azure Bastion                 Disabled
@@ -130,7 +122,7 @@ Azure Firewall                Disabled
 Azure DDoS Network Protection Disabled
 ```
 
-Security controls rely on NSGs, host firewalls, private subnetting, VPN routing, and least-privilege source/destination rules.
+Security relies on segmentation, NSGs, host firewalls, private routing, and least-privilege source/destination rules.
 
 ---
 
@@ -143,17 +135,15 @@ AWS      10.70.0.0/16
 GCP      10.80.0.0/16
 ```
 
-The addressing plan avoids CIDR overlap and supports routed multi-cloud connectivity.
+No CIDR overlap is permitted.
 
 ---
 
-## 5. Azure Network
-
-VNet:
+## 5. Azure Network and VPN
 
 ```text
-vnet-enterprise-data-platform-lab
-10.60.0.0/16
+VNet: vnet-enterprise-data-platform-lab
+CIDR: 10.60.0.0/16
 ```
 
 Subnets:
@@ -175,16 +165,39 @@ Azure ASN:     65515
 Azure APIPA:   169.254.21.2
 ```
 
-OCI ↔ Azure connectivity is established using IPsec/IKEv2 and BGP.
-
-Validated routing state:
+OCI side:
 
 ```text
-Azure learns OCI:      10.50.0.0/16
-Azure advertises:      10.60.0.0/16
-IPSec:                 Up
-IPv4 BGP:              Up
-VPN diagnostics:       Healthy
+DRG:          drg-azure-hybrid-lab
+Attachment:   att-rotez-hybrid-lab-vcn
+CPE:          cpe-azure-vpn-gateway
+IPSec:        ipsec-oci-azure-lab
+Tunnel:       Azure-Tunnel-1
+OCI ASN:      31898
+IKE:          IKEv2
+```
+
+Validated state:
+
+```text
+IPSec:                       Up
+IPv4 BGP:                    Up
+Azure BGP peer:              Connected
+Azure learns OCI route:      10.50.0.0/16
+Azure advertises to OCI:     10.60.0.0/16
+VPN diagnostics:             Healthy
+```
+
+### VPN Incident — PSK Mismatch
+
+The tunnel initially failed despite otherwise plausible configuration. Azure Network Watcher, IKE/ESP state, BGP status, route propagation, and peer settings were checked. The root cause was a pre-shared-key mismatch. After correcting the PSK, IPsec and BGP came Up and route exchange was validated.
+
+Private database-path validation:
+
+```text
+OCI Oracle 10.50.10.178
+-> Azure SQL Server 10.60.20.4:1433
+Result: SUCCESS
 ```
 
 ---
@@ -209,11 +222,11 @@ max server memory 5120 MB
 optimize for ad hoc workloads enabled
 ```
 
-Storage layout:
+Storage:
 
 ```text
-F:\data\     user database data files
-G:\log\      user database log files
+F:\data\     user data files
+G:\log\      user log files
 H:\tempDb\   tempdb files
 ```
 
@@ -225,18 +238,15 @@ Data file: F:\data\LabTestDB.mdf
 Log file:  G:\log\LabTestDB_log.ldf
 ```
 
-Private OCI Oracle VM → Azure SQL Server connectivity on TCP 1433 has been validated successfully.
-
 ---
 
-## 7. GoldenGate Hub — Deployed
-
-The dedicated GoldenGate hub is no longer a future item; it is deployed and operational.
+## 7. GoldenGate Hub — Deployed and Operational
 
 ```text
 VM:            vm-goldengate-lab-01
 Private IP:    10.60.30.4
 OS:            Oracle Linux 9.8
+VM size:       Standard_D2as_v7
 GoldenGate:    Oracle GoldenGate 26ai Microservices
 Version:       23.26.1.0.0
 OGG home:      /u01/ogg26ai_home
@@ -253,44 +263,92 @@ Microservices:
 | Receiver Service | 9014 | Running |
 | Performance Metrics Service | 9015 | Running |
 
-Service Manager is registered as a Linux `systemd` service.
+Service Manager is registered as `OracleGoldenGate.service` under systemd.
 
-### GoldenGate Web Access
-
-Local validation:
+### GoldenGate network controls
 
 ```text
-9011 HTTP=200
-9012 HTTP=200
+nsg-goldengate-lab
+Associated subnet: snet-goldengate 10.60.30.0/24
 ```
 
-Remote web access was initially blocked by the Azure inbound path. The final management path is:
+Key flows:
 
 ```text
-Administrator workstation
-        -> Azure public IP
-        -> Azure NSG
-        -> Oracle Linux firewalld
-        -> GoldenGate Service Manager :9011
+Management subnet -> GoldenGate TCP 22
+GoldenGate -> Azure SQL Server 10.60.20.4 TCP 1433
+GoldenGate -> OCI Oracle 10.50.10.178 TCP 1521
+Restricted admin source /32 -> GoldenGate TCP 9011-9012
 ```
 
-Linux firewall rules were added for controlled management access on TCP 9011-9012, and the Azure NSG rule was restricted to the administrator public IP `/32` rather than `0.0.0.0/0`.
+OCI listener security-list rule:
 
-> TLS/HTTPS remains a management-plane hardening task.
+```text
+10.60.30.0/24 -> TCP 1521
+```
 
 ---
 
-## 8. GoldenGate OGGCA Incident — Root Cause and Resolution
+## 8. GoldenGate Installation and Troubleshooting Record
 
-During OGGCA deployment configuration, validation failed with:
+### 8.1 X11 / Remote Administration Issue
+
+Native Windows OpenSSH provided shell access but did not establish the usable X11 display needed for Oracle GUI installers.
+
+**Remediation:** A temporary source-restricted direct SSH path was used with MobaXterm X11 forwarding.
+
+**Validation:**
 
 ```text
-Verification failed.
-Expected value: (NOT) 'running'
-actual value: 'running'
+DISPLAY=localhost:10.0
 ```
 
-Investigation showed that Service Manager could stop while `adminsrvr`, `distsrvr`, `recvsrvr`, and `pmsrvr` remained active and listening on ports 9012-9015. The detached services were observed with PPID 1.
+The GoldenGate installer and OGGCA GUI launched successfully.
+
+### 8.2 First Administration Server Crash — `std::bad_alloc`
+
+After the first deployment and reboot, `adminsrvr` repeatedly terminated with:
+
+```text
+std::bad_alloc
+```
+
+The failure localized around Trail File Cache initialization. RAM, swap, and disk were healthy.
+
+**Remediation:** Because the deployment was disposable and the fault appeared internal to the fresh GoldenGate runtime, evidence was preserved and the deployment was cleanly deinstalled/rebuilt.
+
+### 8.3 Silent OGGCA `INS-85005`
+
+A hand-edited silent response file reported:
+
+```text
+INS-85005
+Specified GoldenGate software home invalid
+```
+
+The GUI accepted the same software home, proving the home itself was valid.
+
+**Remediation:** Switched to the X11 GUI/canonical response-file path.
+
+### 8.4 OGGCA Stop-State / `INS-85038` Incident — Resolved
+
+OGGCA failed deployment-stop verification:
+
+```text
+Expected value: (NOT) 'running'
+Actual value: 'running'
+```
+
+Evidence showed Service Manager could stop while:
+
+```text
+adminsrvr
+distsrvr
+pmsrvr
+recvsrvr
+```
+
+remained alive and listening on 9012-9015, with detached services observed under `PPID 1`.
 
 Troubleshooting used:
 
@@ -299,8 +357,8 @@ systemctl status OracleGoldenGate
 ps -ef
 /proc/<PID>/cgroup
 ss -lntp
-GoldenGate Admin Client
 OGGCA logs
+GoldenGate Admin Client
 ```
 
 Controlled remediation:
@@ -313,9 +371,9 @@ STOP SERVICE *
 STATUS SERVICE *
 ```
 
-Service Manager was then stopped cleanly with systemd, the OS state was verified, and OGGCA was rerun.
+After all child services were confirmed stopped, Service Manager was stopped with systemd and OS/socket state was validated. OGGCA was rerun.
 
-Final result:
+Final OGGCA result:
 
 ```text
 Start Service Manager                         Succeeded
@@ -325,79 +383,109 @@ Install Plugin Service in Service Manager     Succeeded
 Create Deployment                             Succeeded
 Verify Deployment                             Succeeded
 Stop Deployment                               Succeeded
-Register Service Manager as a system service  Succeeded
+Register Service Manager as system service    Succeeded
 ```
 
-After configuration, the GoldenGate deployment Microservices were again children of the active Service Manager process.
+Post-fix, the deployment Microservices were children of the active Service Manager rather than detached under PID 1.
+
+**Status: RESOLVED.**
+
+### 8.5 GoldenGate Web Access Incident — Resolved
+
+Local tests returned HTTP 200 on ports 9011 and 9012, proving the applications were healthy. Remote Windows `Test-NetConnection` failed on both ports.
+
+`curl -I` returned HTTP 405 because GoldenGate rejected the HEAD method; normal GET requests returned HTTP 200. The 405 was not a network outage.
+
+Failure-domain isolation:
+
+```text
+Workstation
+-> Azure public-IP path
+-> Azure NSG
+-> Oracle Linux firewalld
+-> GoldenGate listeners
+```
+
+Linux firewall remediation:
+
+```bash
+sudo firewall-cmd --permanent --zone=public --add-port=9011/tcp
+sudo firewall-cmd --permanent --zone=public --add-port=9012/tcp
+sudo firewall-cmd --reload
+```
+
+Azure remediation:
+
+- Added source-restricted `/32` NSG rule for TCP 9011-9012.
+- Did not expose the management plane to `0.0.0.0/0`.
+- Distinguished the NIC-associated inbound public IP from the NAT Gateway public IP, which is outbound SNAT only.
+
+**Validation:** Service Manager web UI loaded successfully and showed all four DEP1 Microservices running.
+
+**Status: RESOLVED.**
+
+### 8.6 Patch Identification Detour
+
+A downloaded file named `V1054592-01.zip` was initially considered as a possible GoldenGate patch. It was verified to be an Oracle AI Database 26ai base image, not the GoldenGate maintenance patch.
+
+The GoldenGate runtime remains `23.26.1.0.0`; no interim patch was applied as part of the OGGCA remediation.
+
+**Status:** Patch work intentionally deferred until the exact required GoldenGate patch and README are available.
 
 ---
 
-## 9. GoldenGate Hub → OCI Oracle Connectivity
+## 9. GoldenGate Hub -> OCI Oracle Connectivity — Validated
 
-The GoldenGate VM route to the OCI Oracle source was validated:
+Route from the GoldenGate VM:
 
 ```text
-Source:      10.60.30.4
-Destination: 10.50.10.178
-Next hop:    10.60.30.1
-Interface:   eth0
+10.50.10.178 via 10.60.30.1 dev eth0 src 10.60.30.4
 ```
 
-TCP listener validation:
+Listener test:
 
 ```text
 GoldenGate 10.60.30.4
-        -> IPSec/BGP
-        -> OCI Oracle 10.50.10.178:1521
+-> IPsec/BGP
+-> OCI Oracle 10.50.10.178:1521
 
-Result: TCP 1521 SUCCESS
+TCP 1521 SUCCESS
 ```
 
-A second test confirmed connection establishment to TCP 1521 with `curl telnet://`.
+A `curl telnet://10.50.10.178:1521` test also established the TCP connection.
 
-This proves the cross-cloud network path to the Oracle listener before GoldenGate Extract configuration.
+This proves the complete cross-cloud listener path before Extract configuration.
+
+`sqlplus` and `tnsping` were not present on the GoldenGate VM; no unnecessary client install was performed solely for this connectivity test.
 
 ---
 
-## 10. Oracle FRA Incident — Database Hang During GoldenGate Preparation
+## 10. Oracle FRA / Redo Incident — RCA Complete, Recovery Validation Pending
 
-While validating the Oracle GoldenGate database account, an `ALTER USER` statement appeared to hang.
+While validating the GoldenGate source account, an `ALTER USER` operation appeared to hang.
 
-### Symptoms
+### Symptom
 
-Many sessions were waiting on:
+Many sessions waited on:
 
 ```text
 log file switch (archiving needed)
 ```
 
-The repeated `BLOCKING_SESSION` value was SID 16. Investigation identified SID 16 as the Oracle `LGWR` background process.
+Many showed `BLOCKING_SESSION = 16`. SID 16 was identified as `LGWR`.
 
 ### Root Cause
-
-The Fast Recovery Area was at its configured quota:
 
 ```text
 db_recovery_file_dest      = /u03/fra
 db_recovery_file_dest_size = 10G
 FRA used                   = 9.88G
 FRA reclaimable            = 0G
+Archive destination        = ERROR
+ORA-19809                  = limit exceeded for recovery files
 ```
 
-Archive destination status:
-
-```text
-STATUS: ERROR
-ORA-19809: limit exceeded for recovery files
-```
-
-The Linux filesystem itself was not full:
-
-```text
-Filesystem size: 83G
-Used:            54G
-Available:       30G
-```
+The Linux filesystem itself had about 30 GB available, proving the root cause was Oracle FRA quota exhaustion rather than a full OS filesystem.
 
 Physical FRA usage included:
 
@@ -409,15 +497,17 @@ Physical FRA usage included:
 Failure chain:
 
 ```text
-FRA reaches configured quota
-        -> archiver cannot archive completed redo
-        -> online redo log cannot be reused
-        -> LGWR waits for log switch
-        -> sessions wait on "log file switch (archiving needed)"
-        -> foreground DDL appears to hang
+FRA quota exhausted
+-> ARCn cannot archive redo
+-> completed online redo cannot be reused
+-> LGWR cannot progress through required log switch
+-> sessions wait on "log file switch (archiving needed)"
+-> foreground SQL/DDL appears hung
 ```
 
-### Remediation Plan
+`LGWR` was not killed because it was a symptom-bearing blocker, not the root cause.
+
+### Remediation selected
 
 Immediate recovery:
 
@@ -426,9 +516,9 @@ ALTER SYSTEM SET db_recovery_file_dest_size=20G SCOPE=BOTH;
 ALTER SYSTEM ARCHIVE LOG CURRENT;
 ```
 
-Then validate archive destination status and confirm the wait condition clears.
+Then validate archive destination recovery.
 
-Permanent cleanup should be performed with RMAN rather than deleting recovery files manually from the filesystem:
+Permanent cleanup through RMAN:
 
 ```text
 SHOW RETENTION POLICY;
@@ -438,162 +528,163 @@ CROSSCHECK ARCHIVELOG ALL;
 DELETE EXPIRED ARCHIVELOG ALL;
 ```
 
-Delete obsolete/backed-up recovery files only after RMAN validation.
+Manual `rm` deletion inside FRA is intentionally avoided.
 
-### Troubleshooting Methodology
-
-```text
-Detect
--> Collect Evidence
--> Isolate Failure Domain
--> Root Cause
--> Remediate
--> Validate
--> Document RCA
-```
-
-No critical Oracle background process was killed. In particular, `LGWR` was identified as a symptom-bearing blocker, not the root cause.
+**Status:** Root cause confirmed. Remediation still requires execution/post-change validation before the incident is marked fully resolved.
 
 ---
 
-## 11. Current Security Controls
+## 11. Current Security Principles
 
-### GoldenGate NSG
-
-```text
-nsg-goldengate-lab
-Associated subnet: snet-goldengate 10.60.30.0/24
-```
-
-Key controls:
+Do not use broad public rules for database or GoldenGate administration:
 
 ```text
-Management subnet -> GoldenGate TCP 22
-GoldenGate subnet -> SQL Server 10.60.20.4 TCP 1433
-GoldenGate subnet -> OCI Oracle 10.50.10.178 TCP 1521
-Restricted administrator source -> GoldenGate TCP 9011-9012
+Avoid 0.0.0.0/0 -> TCP 22
+Avoid 0.0.0.0/0 -> TCP 1433
+Avoid 0.0.0.0/0 -> TCP 1521
+Avoid broad public GoldenGate management exposure
 ```
 
-### OCI Listener Security
+Use:
 
-OCI security-list ingress allows:
-
-```text
-10.60.30.0/24 -> TCP 1521
-```
-
-### Database Exposure Standard
-
-Avoid:
-
-```text
-0.0.0.0/0 -> TCP 22
-0.0.0.0/0 -> TCP 1433
-0.0.0.0/0 -> TCP 1521
-```
-
-Use private CIDRs and least-privilege source/destination rules.
+- private CIDRs
+- least-privilege NSG/security-list rules
+- source-restricted administration
+- separate management/database/GoldenGate subnets
+- host firewalls
+- TLS/HTTPS as a GoldenGate hardening follow-up
 
 ---
 
 ## 12. Current Project Status
 
-### Completed
+### Completed / Validated
 
-- [x] Azure subscription and cost controls
+- [x] Azure subscription, budget, and cost controls
 - [x] Resource group and governance tags
-- [x] Cross-cloud CIDR design
-- [x] Azure VNet and subnet architecture
+- [x] Cross-cloud non-overlapping CIDR design
+- [x] Azure VNet and subnet segmentation
 - [x] Database NSG
 - [x] SQL Server VM deployment
 - [x] SQL Server 2022 DBA baseline
 - [x] SQL Server static listener TCP 1433
-- [x] OCI ↔ Azure Site-to-Site VPN
 - [x] OCI DRG and VCN attachment
 - [x] Azure VPN Gateway
-- [x] IPsec/IKEv2 tunnel
-- [x] BGP session and route exchange
-- [x] OCI Oracle -> Azure SQL Server TCP 1433 validation
-- [x] GoldenGate subnet and NSG
+- [x] OCI↔Azure route-based IPsec/IKEv2 Site-to-Site VPN
+- [x] BGP adjacency and route exchange
+- [x] VPN PSK mismatch diagnosed and remediated
+- [x] OCI Oracle -> Azure SQL Server TCP 1433 private validation
+- [x] GoldenGate subnet and dedicated NSG
 - [x] Dedicated GoldenGate hub compute
-- [x] GoldenGate 26ai Microservices installation
+- [x] GoldenGate 26ai Microservices installation/reinstallation
 - [x] DEP1 deployment
 - [x] Service Manager systemd registration
 - [x] Administration, Distribution, Receiver, and Metrics services validated
-- [x] GoldenGate web interface access validated
-- [x] OGGCA stop-state incident diagnosed and resolved
+- [x] X11 installer-access issue resolved
+- [x] Administration Server `std::bad_alloc` incident isolated and remediated by rebuild
+- [x] Silent OGGCA `INS-85005` path issue isolated
+- [x] OGGCA stop-state / `INS-85038` incident resolved
+- [x] GoldenGate web interface network-access incident resolved
+- [x] GoldenGate local HTTP 9011/9012 validated
+- [x] GoldenGate remote web interface validated
 - [x] OCI Oracle source baseline validated
 - [x] Oracle FORCE LOGGING enabled
 - [x] Minimal supplemental logging validated
 - [x] `enable_goldengate_replication=TRUE` validated
 - [x] OCI Oracle listener service `pdb23ai` validated
 - [x] GoldenGate hub -> OCI Oracle TCP 1521 validated
-- [x] Oracle FRA exhaustion incident root cause identified
+- [x] `GGADMIN` account confirmed OPEN
+- [x] Oracle FRA exhaustion root cause identified
+- [x] Incorrect patch package identification corrected
 
 ### In Progress
 
-- [ ] Restore/validate Oracle FRA and archive health
+- [ ] Increase/recover FRA and validate archive destination health
 - [ ] Clean FRA safely using RMAN
-- [ ] Validate GoldenGate database account privileges
-- [ ] Configure GoldenGate credential store / database connection
+- [ ] Revalidate final GoldenGate database account privileges
+- [ ] Configure GoldenGate credential store/database alias
+- [ ] Validate GoldenGate database login to `PDB23AI`
+- [ ] Configure TRANDATA/SCHEMATRANDATA
 - [ ] Configure Oracle Extract
 - [ ] Configure trail files
-- [ ] Prepare SQL Server schema mapping
-- [ ] Configure SQL Server Replicat
+- [ ] Prepare SQL Server schema/datatype mapping
+- [ ] Configure SQL Server target credentials/connectivity for GoldenGate
+- [ ] Configure Replicat
 - [ ] Initial load and CDC validation
 
-### Future Phases
+### Future
 
+- [ ] Replication lag/failure/restart exercises
+- [ ] Data reconciliation
+- [ ] Cutover/rollback drill
 - [ ] Bidirectional Oracle ↔ SQL Server replication
-- [ ] Loop-prevention testing
-- [ ] Conflict detection/resolution testing
-- [ ] Replication failure/restart testing
+- [ ] Loop prevention
+- [ ] Conflict detection/resolution
+- [ ] TLS/HTTPS hardening for GoldenGate management plane
+- [ ] Remove temporary direct public administration path when no longer needed
 - [ ] AWS PostgreSQL environment
 - [ ] Azure/OCI ↔ AWS connectivity
 - [ ] PostgreSQL migration/replication
-- [ ] Google Cloud PostgreSQL environment
+- [ ] GCP PostgreSQL environment
 - [ ] Multi-cloud PostgreSQL comparison
 - [ ] Monitoring and operational runbooks
-- [ ] Backup/recovery validation
-- [ ] Cutover/rollback testing
 
 ---
 
-## 13. Immediate Next Step
+## 13. Current Technical Gate and Immediate Next Sequence
 
-The GoldenGate hub is already deployed, so the previous checkpoint's instruction to deploy the hub is complete.
+The GoldenGate hub itself is no longer the blocker. OGGCA registration and web access are working.
 
-The immediate sequence is now:
+The current technical gate is Oracle redo/archive health.
 
 ```text
-1. Resolve Oracle FRA pressure and confirm archiving is healthy
-2. Validate the dedicated GoldenGate Oracle database account
-3. Configure GoldenGate database credentials
-4. Test GoldenGate database login to PDB23AI
-5. Configure Oracle Extract
-6. Configure trail files
-7. Prepare SQL Server schema and target credentials
-8. Configure Replicat
-9. Perform initial load and CDC validation
+1. Relieve FRA pressure
+2. Force/retest archiving
+3. Confirm archive destination is VALID and ORA-19809 is gone
+4. Review and clean FRA with RMAN
+5. Revalidate GGADMIN privileges
+6. Configure GoldenGate credential/database alias
+7. Validate database login to PDB23AI
+8. Configure TRANDATA / SCHEMATRANDATA
+9. Configure Extract
+10. Configure trail files
+11. Prepare SQL Server target schema and credentials
+12. Configure Replicat
+13. Perform initial load and INSERT/UPDATE/DELETE CDC validation
 ```
-
-The next technical gate is **healthy Oracle redo/archive processing**. GoldenGate capture configuration should not proceed while the source database is experiencing archive destination errors.
 
 ---
 
-## 14. Migration and Replication Method
+## 14. Troubleshooting and Remediation Register
 
-Because Oracle and SQL Server are heterogeneous platforms, the migration will not use RMAN, Data Guard, or a direct Data Pump restore into SQL Server.
+| Incident | Failure Domain | Root Cause / Evidence | Remediation | Status |
+|---|---|---|---|---|
+| OCI↔Azure VPN initially unhealthy | Network/VPN | PSK mismatch | Corrected PSK; revalidated IKE/IPsec/BGP | Resolved |
+| Windows OpenSSH unsuitable for OGGCA X11 | Management tooling | Usable X11 display not established | Temporary restricted direct SSH + MobaXterm X11 | Resolved for build |
+| `adminsrvr` `std::bad_alloc` after reboot | GoldenGate runtime | Repeatable TrailFileCache initialization failure; host resources healthy | Clean deinstall/rebuild | Resolved by rebuild |
+| OGGCA `INS-85005` | Configuration tooling | Silent response-file path rejected valid home; GUI accepted same home | Switched to GUI/canonical response workflow | Resolved |
+| OGGCA stop-state / `INS-85038` | GoldenGate lifecycle | Deployment child services remained active after Service Manager stop | Controlled service shutdown, OS validation, rerun OGGCA | Resolved |
+| GoldenGate UI unreachable remotely | Azure/host networking | NSG + firewalld inbound path incomplete | Opened 9011-9012 locally and source-restricted Azure NSG | Resolved |
+| HTTP 405 during `curl -I` | Protocol test | HEAD method rejected; GET returned 200 | Retested using normal GET | Resolved |
+| NAT Gateway IP mistaken for inbound VM destination | Network addressing | NAT IP is outbound SNAT only | Used NIC-associated public IP for inbound browser test | Resolved |
+| Wrong ZIP considered as GoldenGate patch | Patch management | File was Oracle AI Database base image | Patch work paused pending correct patch/README | Resolved identification |
+| Oracle DDL appeared hung | Oracle redo/archive | FRA quota exhausted; `ORA-19809`; LGWR waiting on archive progress | Increase FRA, restore archiving, RMAN cleanup | RCA complete; validation pending |
+
+---
+
+## 15. Migration and Replication Method
+
+Because Oracle and SQL Server are heterogeneous platforms, migration will not use RMAN, Data Guard, or a direct Data Pump restore into SQL Server.
 
 | Phase | Method | Objective |
 |---|---|---|
-| Assessment | SQL Server Migration Assistant for Oracle or equivalent tooling | Identify datatype, PL/SQL, object, and compatibility gaps |
+| Assessment | SQL Server Migration Assistant for Oracle or equivalent | Identify datatype, PL/SQL, object, and compatibility gaps |
 | Schema conversion | Oracle-to-SQL Server conversion | Build equivalent SQL Server schema |
-| Initial load | Bulk / migration tooling | Establish synchronized baseline data |
+| Initial load | Bulk/migration tooling | Establish synchronized baseline |
 | CDC | Oracle GoldenGate | Capture and apply ongoing transactional changes |
-| Validation | Row counts, object checks, sample reconciliation, transaction testing | Prove target correctness |
+| Validation | Row counts, object checks, reconciliation, transaction testing | Prove target correctness |
 | Cutover | Controlled write stop, drain replication, final validation | Practice near-zero-downtime transition |
-| Rollback | Preserve source and reverse operational decision if required | Demonstrate recovery discipline |
+| Rollback | Preserve source and reverse decision if required | Demonstrate recovery discipline |
 
 Key conversion areas:
 
@@ -608,29 +699,25 @@ Oracle PL/SQL      -> SQL Server T-SQL redesign where required
 
 ---
 
-## 15. Hands-On Execution Plan
+## 16. Hands-On Execution Plan
 
 ### Stage 1 — Secure Connectivity — Completed
 
-- OCI ↔ Azure routing and VPN
+- OCI↔Azure VPN and BGP
+- routing
 - NSGs/security lists
-- Listener access
-- Oracle TCP 1521 validation
-- SQL Server TCP 1433 validation
+- Oracle listener TCP 1521 path
+- SQL Server TCP 1433 path
 
-### Stage 2 — GoldenGate Hub — Substantially Completed
+### Stage 2 — GoldenGate Hub — Completed at Platform Level
 
-- Dedicated VM deployed
-- GoldenGate Microservices installed
-- DEP1 configured
-- Web interface validated
-- Remote Oracle network path validated
-
-Remaining:
-
-- Database credential configuration
-- Extract configuration
-- Target SQL Server GoldenGate connectivity
+- Dedicated Azure Linux VM
+- GoldenGate 26ai Microservices
+- DEP1
+- systemd Service Manager registration
+- management UI
+- Oracle network path
+- lifecycle troubleshooting
 
 ### Stage 3 — Unidirectional Replication
 
@@ -640,16 +727,16 @@ OCI Oracle -> Azure SQL Server
 
 Practice:
 
-- Schema assessment and conversion
-- Initial data load
-- Remote capture
-- Remote apply
-- INSERT / UPDATE / DELETE replication
-- Checkpoint and lag monitoring
-- Process stop/start
-- Failure recovery
-- Data reconciliation
-- Cutover and rollback drill
+- schema assessment/conversion
+- initial load
+- remote capture
+- remote apply
+- INSERT/UPDATE/DELETE CDC
+- checkpoints and lag
+- stop/start/restart
+- failure recovery
+- reconciliation
+- cutover/rollback
 
 ### Stage 4 — Bidirectional Replication
 
@@ -659,18 +746,17 @@ OCI Oracle <-> Azure SQL Server
 
 Practice:
 
-- Capture/apply in both directions
-- Loop prevention
-- Key/sequence/identity strategy
-- Simultaneous updates
-- Conflict scenarios
-- Conflict-resolution strategy
-- Restart after outage
-- Reconciliation after divergence
+- capture/apply both directions
+- loop prevention
+- key/sequence/identity strategy
+- simultaneous updates
+- conflicts
+- restart after outage
+- reconciliation after divergence
 
 ### Stage 5 — AWS Expansion
 
-Build PostgreSQL in `10.70.0.0/16`, extend connectivity, and compare self-managed versus managed database options.
+Build PostgreSQL in `10.70.0.0/16`, extend connectivity, and compare self-managed versus managed deployment patterns.
 
 ### Stage 6 — Google Cloud Expansion
 
@@ -678,23 +764,24 @@ Build PostgreSQL in `10.80.0.0/16` using Compute Engine or Cloud SQL and extend 
 
 ---
 
-## 16. Experience Outcome
+## 17. Experience Outcome
 
-The lab is intended to produce operational evidence sufficient to explain:
+The lab should provide enough operational evidence to explain:
 
-- Why the dedicated GoldenGate hub model was selected
+- Why a dedicated GoldenGate hub was selected
 - How remote capture and remote apply work
-- How heterogeneous Oracle → SQL Server migration differs from Oracle → Oracle migration
+- How heterogeneous Oracle -> SQL Server migration differs from Oracle -> Oracle migration
 - How one-way CDC is configured and validated
 - How bidirectional replication changes the design
 - How loops and write conflicts are controlled
-- How GoldenGate behaves during interruption and restart
-- How to diagnose infrastructure and database-side blocking conditions
-- How to detect and reconcile divergence
+- How GoldenGate behaves during service interruption and restart
+- How to isolate network, host-firewall, application, database, and redo/archive failure domains
+- How to diagnose FRA-related database stalls without killing critical background processes
+- How to reconcile divergence
 - How to design cutover and rollback
 - How networking, security, credentials, and database privileges affect CDC
-- How the architecture can extend across OCI, Azure, AWS, and Google Cloud
+- How the architecture extends to AWS and GCP
 
-Interview-level project summary:
+Interview-level summary:
 
-> Built a heterogeneous multi-cloud database migration and replication lab spanning OCI Oracle, Azure SQL Server, Oracle GoldenGate, AWS PostgreSQL, and Google Cloud PostgreSQL. Implemented OCI-Azure IPsec/BGP connectivity, deployed a dedicated GoldenGate 26ai Microservices hub with remote database connectivity, validated source and target network paths, and performed production-style troubleshooting of GoldenGate lifecycle, Azure access-control, and Oracle FRA/redo incidents. The lab is progressing into Oracle-to-SQL Server CDC, followed by bidirectional replication, failure recovery, conflict handling, reconciliation, cutover, and rollback testing.
+> Built a heterogeneous multi-cloud database migration and replication lab spanning OCI Oracle, Azure SQL Server, Oracle GoldenGate, AWS PostgreSQL, and Google Cloud PostgreSQL. Implemented OCI-Azure IPsec/IKEv2 connectivity with BGP, diagnosed and corrected a PSK mismatch, deployed a dedicated GoldenGate 26ai Microservices hub, resolved GoldenGate installation/lifecycle and remote-management failures, validated private Oracle and SQL Server network paths, and performed evidence-driven RCA of an Oracle FRA/redo stall. The lab is progressing into Oracle-to-SQL Server CDC, followed by restart/recovery, reconciliation, bidirectional replication, conflict handling, cutover, and rollback testing.
