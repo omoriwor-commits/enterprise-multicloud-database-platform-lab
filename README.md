@@ -142,7 +142,7 @@ Simulate and troubleshoot:
 
 Troubleshooting methodology:
 
-Detect → Collect Evidence → Isolate Failure Domain → Root Cause → Remediate → Validate → Document RCA
+**Detect → Collect Evidence → Isolate Failure Domain → Root Cause → Remediate → Validate → Document RCA**
 
 ### Phase 8 — Security, Governance and Resilience
 
@@ -190,17 +190,226 @@ Compare Oracle OCI, Azure SQL Server, PostgreSQL EC2, and Amazon RDS PostgreSQL 
 
 ## Current Status
 
-**Current Phase:** Phase 1 — Azure Foundation
+**Active Workstream:** Phase 3 — OCI Oracle to Azure SQL Server, with SQL Server DBA foundation work continuing in parallel.
 
-### Next Steps
+### Completed — Azure Foundation
 
-1. Configure Azure subscription and cost controls.
-2. Create the Azure Resource Group.
-3. Design the VNet and subnet architecture.
-4. Configure Network Security Groups.
-5. Deploy the Windows Server / SQL Server environment.
-6. Validate networking, security, storage, and connectivity.
-7. Begin SQL Server DBA administration exercises.
+- Azure subscription and cost controls configured.
+- Resource group created: `rg-enterprise-data-platform-lab`.
+- Azure VNet created: `vnet-enterprise-data-platform-lab` (`10.60.0.0/16`).
+- Subnets configured:
+  - Management: `10.60.10.0/24`
+  - Database: `10.60.20.0/24`
+  - GoldenGate: `10.60.30.0/24`
+  - GatewaySubnet: `10.60.254.0/27`
+- Cross-cloud CIDR plan validated to avoid overlap:
+  - OCI: `10.50.0.0/16`
+  - Azure: `10.60.0.0/16`
+  - AWS: `10.70.0.0/16`
+- OCI-to-Azure site-to-site connectivity established using route-based IPsec/IKEv2 and BGP.
+- VPN troubleshooting performed using Azure Network Watcher.
+- Pre-shared-key mismatch identified and corrected.
+- IKE/IPsec connectivity validated.
+
+### Completed — Oracle GoldenGate 26ai on Azure
+
+- Dedicated Oracle GoldenGate 26ai Microservices VM deployed in Azure.
+- GoldenGate binary version validated: `23.26.1.0.0`.
+- Oracle GoldenGate home: `/u01/ogg26ai_home`.
+- Deployment home: `/u01/ogg26ai_deploy`.
+- GoldenGate deployment created: `DEP1`.
+- GoldenGate Service Manager registered as a Linux `systemd` service.
+- GoldenGate Microservices validated:
+
+| Service | Port | Status |
+|---|---:|---|
+| Service Manager | 9011 | Running |
+| Administration Service | 9012 | Running |
+| Distribution Service | 9013 | Running |
+| Receiver Service | 9014 | Running |
+| Performance Metrics Service | 9015 | Running |
+
+- GoldenGate Service Manager web interface validated from an authorized remote workstation.
+- Oracle Linux `firewalld` configured for controlled GoldenGate management access.
+- Azure NSG access restricted to the administrator source IP rather than broad Internet exposure.
+
+## Troubleshooting Case Study — OGGCA Deployment Stop Failure
+
+### Incident
+
+During Oracle GoldenGate Configuration Assistant (OGGCA) configuration, deployment validation failed because `DEP1` was still reported as running after a stop request.
+
+```text
+Verification failed.
+Expected value: (NOT) 'running'
+actual value: 'running'
+
+Verification failed for REST call to:
+/services/v2/deployments/DEP1
+```
+
+### Symptoms and Evidence
+
+OGGCA issued the deployment stop request, but validation failed. Process and socket inspection showed that Service Manager could stop while the deployment Microservices remained active:
+
+```text
+adminsrvr
+distsrvr
+recvsrvr
+pmsrvr
+```
+
+The services continued listening on ports `9012-9015` and were observed with `PPID 1`, indicating that they were no longer children of the active Service Manager process.
+
+Evidence collection included:
+
+- `systemctl status OracleGoldenGate`
+- `ps -ef`
+- process parent IDs
+- `/proc/<PID>/cgroup`
+- `ss -lntp`
+- OGGCA configuration logs
+- GoldenGate REST responses
+- Admin Client service status
+
+### Failure-Domain Isolation
+
+The investigation followed the lab's production-style troubleshooting methodology:
+
+**Detect → Collect Evidence → Isolate Failure Domain → Root Cause → Remediate → Validate → Document RCA**
+
+The failure was isolated to deployment lifecycle control: the deployment services had remained alive independently after Service Manager shutdown, causing OGGCA's stopped-state verification to fail.
+
+### Remediation
+
+Service Manager was brought up and `DEP1` was controlled through GoldenGate Admin Client:
+
+```text
+CONNECT http://127.0.0.1:9011 DEPLOYMENT DEP1 AS oggadmin
+```
+
+The controlled shutdown sequence was:
+
+```text
+STOP ER *
+STOP DISTPATH ALL
+STOP SERVICE *
+STATUS SERVICE *
+```
+
+At this stage there were no Extract or Replicat groups and no Distribution Paths configured. The deployment Microservices were successfully stopped and verified.
+
+Service Manager was then stopped cleanly:
+
+```bash
+sudo systemctl stop OracleGoldenGate
+```
+
+OS-level validation confirmed that Service Manager and all four deployment services were down and ports `9011-9015` were closed.
+
+### Resolution
+
+OGGCA was rerun after the controlled shutdown. All configuration actions completed successfully, including the operation that had previously failed:
+
+```text
+Start Service Manager                         Succeeded
+Verify Service Manager                        Succeeded
+Add Service Manager Administrator User        Succeeded
+Install Plugin Service in Service Manager     Succeeded
+Create Deployment                             Succeeded
+Verify Deployment                             Succeeded
+Stop Deployment                               Succeeded
+Register Service Manager as a system service  Succeeded
+```
+
+After configuration, GoldenGate restarted in a healthy managed state. The deployment Microservices were verified as child processes of the active Service Manager process rather than detached processes under PID 1.
+
+## Troubleshooting Case Study — GoldenGate Web Access
+
+### Initial Condition
+
+GoldenGate responded successfully from the VM itself:
+
+```text
+9011 HTTP=200
+9012 HTTP=200
+```
+
+but remote browser access initially failed.
+
+The network path was isolated as:
+
+```text
+Administrator Workstation
+        ↓
+Azure Public IP
+        ↓
+Azure Network Security Group
+        ↓
+Oracle Linux firewalld
+        ↓
+GoldenGate Service Manager / Administration Service
+```
+
+### Linux Firewall Remediation
+
+The active `firewalld` zone was `public`. Controlled access was enabled for the management interfaces:
+
+```bash
+sudo firewall-cmd --permanent --zone=public --add-port=9011/tcp
+sudo firewall-cmd --permanent --zone=public --add-port=9012/tcp
+sudo firewall-cmd --reload
+```
+
+### Azure NSG Remediation
+
+An Azure inbound NSG rule was configured for TCP ports `9011-9012`, restricted to the administrator's current public source IP using a `/32` rule. The GoldenGate management ports were not opened broadly to `0.0.0.0/0`.
+
+Remote Service Manager access was then successfully validated.
+
+> **Security note:** Current HTTP access proves connectivity and management functionality. TLS/HTTPS remains a hardening task before treating the management plane as production-like.
+
+## Current GoldenGate Architecture
+
+```text
+Azure GoldenGate VM
+
+Service Manager :9011
+       |
+       +-- DEP1
+            |
+            +-- Administration Service   :9012
+            +-- Distribution Service     :9013
+            +-- Receiver Service         :9014
+            +-- Performance Metrics      :9015
+```
+
+### Current GoldenGate Validation State
+
+```text
+Service Manager        RUNNING
+Administration Service RUNNING
+Distribution Service   RUNNING
+Receiver Service       RUNNING
+Performance Metrics    RUNNING
+```
+
+The GoldenGate Service Manager web interface has been successfully validated.
+
+## Next Steps
+
+1. Validate the OCI Oracle source database for GoldenGate capture.
+2. Confirm source database supplemental logging requirements.
+3. Create GoldenGate database credentials and credential-store entries.
+4. Validate Oracle source connectivity from the Azure GoldenGate hub.
+5. Configure source Extract.
+6. Configure trail files.
+7. Continue Azure SQL Server target preparation and DBA foundation work.
+8. Perform Oracle-to-SQL Server schema and datatype mapping.
+9. Configure target Replicat.
+10. Begin initial-load and CDC validation.
+11. Configure TLS/HTTPS for the GoldenGate management plane.
+12. Continue documenting validation evidence, troubleshooting cases, migration runbooks, and rollback procedures.
 
 ---
 
