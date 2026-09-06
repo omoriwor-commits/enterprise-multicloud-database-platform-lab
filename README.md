@@ -233,6 +233,33 @@ Compare Oracle OCI, Azure SQL Server, PostgreSQL EC2, and Amazon RDS PostgreSQL 
 - Oracle Linux `firewalld` configured for controlled GoldenGate management access.
 - Azure NSG access restricted to the administrator source IP rather than broad Internet exposure.
 
+### Completed — OCI Oracle Source Baseline Validation
+
+The OCI Oracle source was validated before creating GoldenGate capture processes.
+
+| Item | Validated State |
+|---|---|
+| Database | `CDB23AI` |
+| Database role | `PRIMARY` |
+| Open mode | `READ WRITE` |
+| PDB | `PDB23AI` — `READ WRITE` |
+| ARCHIVELOG | Enabled |
+| FORCE LOGGING | Enabled |
+| Minimal supplemental logging | Enabled |
+| `enable_goldengate_replication` | `TRUE` |
+| Oracle listener | TCP `1521` |
+| PDB service | `pdb23ai` |
+| OCI source private IP | `10.50.10.178` |
+
+Cross-cloud listener connectivity from the Azure GoldenGate VM (`10.60.30.4`) to the OCI Oracle source (`10.50.10.178:1521`) was validated successfully using the Linux TCP stack:
+
+```text
+TCP 1521 SUCCESS
+Connected to 10.50.10.178 port 1521
+```
+
+This confirmed that the Azure-to-OCI VPN path, routing, security controls, and Oracle listener were reachable before GoldenGate database credential and Extract configuration.
+
 ## Troubleshooting Case Study — OGGCA Deployment Stop Failure
 
 ### Incident
@@ -369,6 +396,108 @@ Remote Service Manager access was then successfully validated.
 
 > **Security note:** Current HTTP access proves connectivity and management functionality. TLS/HTTPS remains a hardening task before treating the management plane as production-like.
 
+## Troubleshooting Case Study — Oracle Database Hang Caused by FRA Exhaustion
+
+### Incident
+
+While preparing the OCI Oracle source for GoldenGate, a password-management statement appeared to hang:
+
+```sql
+ALTER USER ggadmin IDENTIFIED BY ...;
+```
+
+The apparent hang was not caused by the `GGADMIN` account itself. Session analysis showed widespread database waits on:
+
+```text
+log file switch (archiving needed)
+```
+
+Multiple sessions reported `BLOCKING_SESSION = 16`. SID 16 was identified as the Oracle `LGWR` background process.
+
+### Evidence Collection
+
+The investigation used database wait-state, archive, FRA, and operating-system evidence:
+
+- `V$SESSION` to identify blocking sessions and wait events.
+- `V$PROCESS` to map SID 16 to `LGWR`.
+- `ARCHIVE LOG LIST` to confirm ARCHIVELOG mode and archive sequence state.
+- `V$RECOVERY_FILE_DEST` to measure FRA capacity and usage.
+- `V$ARCHIVE_DEST` and `V$ARCHIVE_DEST_STATUS` to identify archive destination errors.
+- `df -h /u03` and `du -sh /u03/fra` to distinguish an Oracle FRA quota problem from an actually full Linux filesystem.
+
+### Root Cause
+
+The Fast Recovery Area was configured as:
+
+```text
+db_recovery_file_dest      = /u03/fra
+db_recovery_file_dest_size = 10G
+```
+
+Oracle reported approximately:
+
+```text
+FRA limit       10 GB
+FRA used        9.88 GB
+Reclaimable      0 GB
+```
+
+The archive destination showed:
+
+```text
+STATUS: ERROR
+ORA-19809: limit exceeded for recovery files
+```
+
+The underlying filesystem still had approximately `30G` free, proving that the failure was the Oracle FRA quota rather than physical disk exhaustion.
+
+The failure chain was:
+
+```text
+FRA reaches configured quota
+        ↓
+ARCn cannot archive completed redo
+        ↓
+Online redo log cannot be reused
+        ↓
+LGWR cannot complete the next log switch
+        ↓
+Sessions wait on "log file switch (archiving needed)"
+        ↓
+Foreground and SYS operations appear to hang
+```
+
+### Remediation Plan
+
+The immediate recovery action is to increase the FRA quota while adequate filesystem capacity exists:
+
+```sql
+ALTER SYSTEM SET db_recovery_file_dest_size=20G SCOPE=BOTH;
+ALTER SYSTEM ARCHIVE LOG CURRENT;
+```
+
+The archive destination will then be revalidated to confirm that `ORA-19809` is cleared and normal redo archival resumes.
+
+The permanent corrective action is to review and reclaim FRA contents through RMAN rather than deleting recovery files directly from the operating system. Planned RMAN validation includes:
+
+```text
+SHOW RETENTION POLICY;
+REPORT OBSOLETE;
+LIST BACKUP OF ARCHIVELOG ALL;
+CROSSCHECK ARCHIVELOG ALL;
+DELETE EXPIRED ARCHIVELOG ALL;
+```
+
+Obsolete backups and safely backed-up archived logs will be removed only after confirming recovery requirements.
+
+### Operational Lesson
+
+The blocker must be interpreted in context. SID 16 was `LGWR`, but killing `LGWR` would not address the root cause and would be unsafe. The correct method was to trace the wait chain into the archive subsystem and FRA capacity condition.
+
+This incident reinforces the lab methodology:
+
+**Detect → Collect Evidence → Isolate Failure Domain → Root Cause → Remediate → Validate → Prevent Recurrence**
+
 ## Current GoldenGate Architecture
 
 ```text
@@ -398,18 +527,19 @@ The GoldenGate Service Manager web interface has been successfully validated.
 
 ## Next Steps
 
-1. Validate the OCI Oracle source database for GoldenGate capture.
-2. Confirm source database supplemental logging requirements.
-3. Create GoldenGate database credentials and credential-store entries.
-4. Validate Oracle source connectivity from the Azure GoldenGate hub.
-5. Configure source Extract.
-6. Configure trail files.
-7. Continue Azure SQL Server target preparation and DBA foundation work.
-8. Perform Oracle-to-SQL Server schema and datatype mapping.
-9. Configure target Replicat.
-10. Begin initial-load and CDC validation.
-11. Configure TLS/HTTPS for the GoldenGate management plane.
-12. Continue documenting validation evidence, troubleshooting cases, migration runbooks, and rollback procedures.
+1. Complete FRA recovery by increasing the quota, validating successful archiving, and cleaning obsolete/redundant recovery files through RMAN.
+2. Revalidate OCI Oracle source health after the FRA incident.
+3. Verify the existing `GGADMIN` account's GoldenGate privileges.
+4. Configure GoldenGate database credentials and credential-store entries.
+5. Validate database authentication from the Azure GoldenGate deployment to `PDB23AI`.
+6. Configure source supplemental logging/TRANDATA for the replication scope.
+7. Configure the GoldenGate Extract and local trail.
+8. Continue Azure SQL Server target preparation and DBA foundation work.
+9. Perform Oracle-to-SQL Server schema and datatype mapping.
+10. Configure target Replicat.
+11. Begin initial-load and CDC validation.
+12. Configure TLS/HTTPS for the GoldenGate management plane.
+13. Continue documenting validation evidence, troubleshooting cases, migration runbooks, and rollback procedures.
 
 ---
 
