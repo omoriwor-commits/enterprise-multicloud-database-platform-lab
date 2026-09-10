@@ -1,114 +1,111 @@
-# Oracle 19c 2-Node RAC Build and Troubleshooting Runbook
+# Oracle 19c 2-Node RAC Build — Simple Real-World Runbook
 
-**Version:** Recovered from the user's existing RAC runbook and reviewed supplements  
-**Platform:** Oracle Linux 8 + VirtualBox  
-**Purpose:** Build and validate a repeatable Oracle 19c two-node RAC lab environment.
-
-> Security note: passwords are intentionally omitted from this GitHub version. Use secure local values during execution.
+**Status:** Tested and reused in the user's RAC lab.  
+**Purpose:** Build Oracle 19c 2-node RAC from scratch in a clean, repeatable way.  
+**Security:** Database passwords from the verified local runbook have been replaced with placeholders before publishing to GitHub.
 
 ---
 
-## 1. Lab Design
-
-### VirtualBox layout
+## Assumptions
 
 ```text
-Adapter 1: Host-Only Adapter (192.168.56.x) — RAC Public Network
-Adapter 2: Internal Network "privnet" (192.168.57.x) — Private Interconnect
-Adapter 3: NAT (DHCP) — Internet Access
+Node1: racnode1
+Node2: racnode2
 ```
 
-### Public network
+### Partition Layout
+
+| Mount Point | Size | Purpose |
+|---|---:|---|
+| `/boot` | 1 GB | Boot files |
+| `/` | 30 GB | Operating system |
+| `/u01` | 60 GB | Oracle software (Grid + DB homes) |
+| `swap` | 8 GB | Swap |
+
+Install:
 
 ```text
-192.168.56.101  racnode1.com  racnode1
-192.168.56.102  racnode2.com  racnode2
+Development Tools
+Graphical Administration Tools (optional but useful)
 ```
 
-### VIP
+### Shared Disks
 
 ```text
-192.168.56.111  racnode1-vip.com
-192.168.56.112  racnode2-vip.com
+/dev/sdb = OCR   (20G)
+/dev/sdc = DATA  (40G)
+/dev/sdd = FRA   (20G)
 ```
 
-### SCAN
+Check the Oracle preinstall package:
 
-```text
-192.168.56.120  rac-scan.com
+```bash
+rpm -q oracle-database-preinstall-19c
 ```
 
-For a lab without DNS, use a single SCAN IP. Prefer DNS in production-like environments.
-
-### Private interconnect
-
-```text
-192.168.57.101  racnode1-priv
-192.168.57.102  racnode2-priv
-```
-
-### Oracle network classification
-
-```text
-enp0s3  Public
-enp0s8  Private Interconnect
-enp0s9  NAT only — do not select as a Cluster network
-```
-
-### Filesystem layout
-
-```text
-/boot  1G
-/      30G
-swap   8G
-/u01   60G
-```
-
-### Shared disks
-
-```text
-/dev/sdb  OCR/VOTING  20G
-/dev/sdc  DATA        40G
-/dev/sdd  FRA         20G
-```
-
-### Oracle software locations
-
-```text
-Grid Base:    /u01/app/grid
-Grid Home:    /u01/app/19.0.0/grid
-Oracle Base:  /u01/app/oracle
-Oracle Home:  /u01/app/oracle/product/19.0.0/dbhome_1
-Inventory:    /u01/app/oraInventory
-```
-
----
-
-## 2. Operating System Preparation
-
-Install Oracle Linux 8 Minimal and Development Tools.
-
-Install the Oracle prerequisite package:
+If not installed:
 
 ```bash
 dnf install -y oracle-database-preinstall-19c
 ```
 
-Configure hostnames on each node as appropriate:
+### Software Paths
 
-```bash
-hostnamectl set-hostname racnode1.com
+```text
+Grid Home:  /u01/app/19.0.0/grid
+Grid Base:  /u01/app/grid
+DB Home:    /u01/app/oracle/product/19.0.0/dbhome_1
+DB Base:    /u01/app/oracle
+Inventory:  /u01/app/oraInventory
 ```
 
-or:
+---
+
+# Phase 1 — OS Prep on Both Nodes
+
+## 1. Set Hostname
+
+On node1:
 
 ```bash
-hostnamectl set-hostname racnode2.com
+hostnamectl set-hostname racnode1
 ```
 
-Configure `/etc/hosts` with the public, VIP, SCAN, and private addresses shown above.
+On node2:
 
-Validate name resolution before Grid installation:
+```bash
+hostnamectl set-hostname racnode2
+```
+
+## 2. Update `/etc/hosts` on Both Nodes
+
+Add:
+
+```text
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+# Public
+192.168.56.101  racnode1
+192.168.56.102  racnode2
+
+# VIP
+192.168.56.111  racnode1-vip
+192.168.56.112  racnode2-vip
+
+# SCAN
+192.168.56.120  rac-scan
+192.168.56.121  rac-scan
+192.168.56.122  rac-scan
+
+# Private interconnect
+192.168.57.101  racnode1-priv
+192.168.57.102  racnode2-priv
+```
+
+## 3. Test Name Resolution
+
+From both nodes:
 
 ```bash
 getent hosts racnode1
@@ -116,208 +113,620 @@ getent hosts racnode2
 getent hosts racnode1-vip
 getent hosts racnode2-vip
 getent hosts rac-scan
-getent hosts racnode1-priv
-getent hosts racnode2-priv
+ping -c 3 racnode1
+ping -c 3 racnode2
+ping -c 3 racnode1-priv
+ping -c 3 racnode2-priv
 ```
 
-Configure and validate `chronyd`:
+## 4. Configure Time Sync
+
+On both nodes:
 
 ```bash
+systemctl enable chronyd
+systemctl start chronyd
 chronyc tracking
 chronyc sources -v
 ```
 
-Lab-only settings used in the original build included disabling `firewalld` and setting SELinux to permissive. These are not production recommendations.
+Do not continue until time synchronization looks healthy.
 
-Create required OS groups:
-
-```text
-oinstall
-dba
-oper
-backupdba
-dgdba
-kmdba
-asmdba
-asmoper
-asmadmin
-```
-
-Create users:
-
-```text
-grid
-oracle
-```
-
-Create Oracle directories:
+## 5. Disable Firewall and Set SELinux Permissive — Lab Only
 
 ```bash
-mkdir -p /u01/app/grid
+systemctl stop firewalld
+systemctl disable firewalld
+setenforce 0
+```
+
+Edit:
+
+```text
+/etc/selinux/config
+```
+
+Set:
+
+```text
+SELINUX=permissive
+```
+
+> This is a lab procedure. Do not blindly disable these controls in a real environment.
+
+---
+
+# Phase 2 — Users, Groups, Kernel, Limits
+
+Check existing groups:
+
+```bash
+grep -E "oinstall|dba|oper|asm|backupdba|dgdba|kmdba" /etc/group
+```
+
+## 6. Create Groups on Both Nodes
+
+```bash
+groupadd -g 54321 oinstall
+groupadd -g 54322 dba
+groupadd -g 54323 oper
+groupadd -g 54324 backupdba
+groupadd -g 54325 dgdba
+groupadd -g 54326 kmdba
+groupadd -g 54327 asmdba
+groupadd -g 54328 asmoper
+groupadd -g 54329 asmadmin
+```
+
+Verify:
+
+```bash
+grep -E "oinstall|dba|oper|asm" /etc/group
+```
+
+## 7. Create Users on Both Nodes
+
+```bash
+useradd -u 54330 -g oinstall -G asmadmin,asmdba,asmoper,dba grid
+usermod -u 54331 -g oinstall -G dba,oper,backupdba,dgdba,kmdba,asmdba oracle
+```
+
+If ownership from an older UID must be corrected in the lab:
+
+```bash
+find / -user 1000 -exec chown oracle:oinstall {} \; 2>/dev/null
+```
+
+Verification:
+
+```bash
+id grid
+id oracle
+
+getent passwd grid
+getent passwd oracle
+
+getent group oinstall
+getent group dba
+getent group oper
+getent group backupdba
+getent group dgdba
+getent group kmdba
+getent group asmdba
+getent group asmoper
+getent group asmadmin
+```
+
+Set local passwords interactively:
+
+```bash
+passwd grid
+passwd oracle
+```
+
+## 8. Set Kernel Parameters on Both Nodes
+
+Edit `/etc/sysctl.conf` and add:
+
+```text
+fs.aio-max-nr = 1048576
+fs.file-max = 6815744
+kernel.shmall = 1073741824
+kernel.shmmax = 4398046511104
+kernel.shmmni = 4096
+kernel.sem = 250 32000 100 128
+net.ipv4.ip_local_port_range = 9000 65500
+net.core.rmem_default = 262144
+net.core.rmem_max = 4194304
+net.core.wmem_default = 262144
+net.core.wmem_max = 1048576
+```
+
+Apply:
+
+```bash
+sysctl -p
+```
+
+## 9. Set Limits on Both Nodes
+
+Edit `/etc/security/limits.conf` and add:
+
+```text
+grid   soft   nproc    2047
+grid   hard   nproc    16384
+grid   soft   nofile   1024
+grid   hard   nofile   65536
+grid   soft   stack    10240
+grid   hard   stack    32768
+
+oracle soft   nproc    2047
+oracle hard   nproc    16384
+oracle soft   nofile   1024
+oracle hard   nofile   65536
+oracle soft   stack    10240
+oracle hard   stack    32768
+```
+
+## 10. Verify `pam_limits`
+
+Check:
+
+```text
+/etc/pam.d/login
+/etc/pam.d/sshd
+```
+
+Ensure:
+
+```text
+session required pam_limits.so
+```
+
+---
+
+# Phase 3 — Directories
+
+## 11. Create Directories on Both Nodes
+
+```bash
 mkdir -p /u01/app/19.0.0/grid
-mkdir -p /u01/app/oracle
+mkdir -p /u01/app/grid
 mkdir -p /u01/app/oracle/product/19.0.0/dbhome_1
+mkdir -p /u01/app/oracle
 mkdir -p /u01/app/oraInventory
 ```
 
-Configure:
+## 12. Set Ownership
 
-```text
-kernel parameters
-resource limits
-PAM
-udev
-.bash_profile for grid and oracle
-passwordless SSH between RAC nodes
+```bash
+chown -R grid:oinstall /u01/app/19.0.0
+chown -R grid:oinstall /u01/app/grid
+chown -R oracle:oinstall /u01/app/oracle
+chown -R grid:oinstall /u01/app/oraInventory
+
+chmod -R 775 /u01/app
+chmod 755 /u01
 ```
 
-ASM device aliases used in the lab:
+Verify:
 
-```text
-asm-disk1
-asm-disk2
-asm-disk3
+```bash
+ls -ld /u01
+ls -ld /u01/app
+ls -ld /u01/app/*
+ls -ld /u01/app/19.0.0/grid
+ls -ld /u01/app/oracle/product/19.0.0/dbhome_1
 ```
 
-For production, use persistent device identifiers. Simple `KERNEL=="sdX"` rules are suitable only for controlled labs.
+Final permission check:
+
+```bash
+namei -om /u01/app/19.0.0/grid
+namei -om /u01/app/oracle/product/19.0.0/dbhome_1
+```
 
 ---
 
-## 3. Network Recovery with nmcli
+# Phase 4 — Shared Disks and UDEV
 
-If the network profiles need to be rebuilt, delete the old profiles first:
-
-```bash
-nmcli connection delete enp0s3
-nmcli connection delete enp0s8
-nmcli connection delete enp0s9
-```
-
-Example for `racnode2`:
+## 13. Confirm Shared Disks on Both Nodes
 
 ```bash
-nmcli connection add type ethernet ifname enp0s3 con-name enp0s3 \
-  ipv4.method manual ipv4.addresses 192.168.56.102/24
-nmcli connection modify enp0s3 ipv4.never-default yes
+lsblk
 ```
+
+Expected:
+
+```text
+sdb
+sdc
+sdd
+```
+
+## 14. Clean Disks Once Before Build
+
+Only if rebuilding from scratch:
 
 ```bash
-nmcli connection add type ethernet ifname enp0s8 con-name enp0s8 \
-  ipv4.method manual ipv4.addresses 192.168.57.102/24
-nmcli connection modify enp0s8 ipv4.never-default yes
+dd if=/dev/zero of=/dev/sdb bs=1M count=100
+dd if=/dev/zero of=/dev/sdc bs=1M count=100
+dd if=/dev/zero of=/dev/sdd bs=1M count=100
 ```
+
+> Do not run this after OCR/voting is in use unless rebuilding everything.
+
+## 15. Create One UDEV Rules File on Both Nodes
+
+File:
+
+```text
+/etc/udev/rules.d/99-oracle-asm.rules
+```
+
+Contents from the tested lab:
+
+```text
+ENV{ID_SERIAL}=="VBOX_HARDDISK_VBad2fb43e-20e7527f", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk1"
+ENV{ID_SERIAL}=="VBOX_HARDDISK_VBacc322ce-7f043f0b", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk2"
+ENV{ID_SERIAL}=="VBOX_HARDDISK_VBbae5fb9c-482333b5", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk3"
+```
+
+These serials are specific to this VirtualBox lab. Recheck identifiers before reusing on another environment.
+
+## 16. Reload UDEV Rules
 
 ```bash
-nmcli connection add type ethernet ifname enp0s9 con-name enp0s9 \
-  ipv4.method auto
+udevadm control --reload-rules
+udevadm trigger
 ```
 
-Bring connections up:
+## 17. Verify Devices
 
 ```bash
-nmcli connection up enp0s3
-nmcli connection up enp0s8
-nmcli connection up enp0s9
+ls -l /dev/asm*
+ls -l /dev/sdb /dev/sdc /dev/sdd
 ```
 
-Validate:
+Expected:
 
-```bash
-ip addr
-ip route
-nmcli device status
+```text
+/dev/asm-disk1 -> sdb
+/dev/asm-disk2 -> sdc
+/dev/asm-disk3 -> sdd
 ```
 
-Internet test:
+The tested runbook recorded the expected device mode as `660`. Verify actual owner/group on both nodes before proceeding.
 
-```bash
-ping -c 3 8.8.8.8
-ping -c 3 google.com
-```
-
-For `racnode1`, use `.101` addresses instead of `.102` for the public and private interfaces.
+Keep only one ASM rules file. Do not maintain duplicate rules files.
 
 ---
 
-## 4. Grid Infrastructure Preparation
+# Phase 5 — User Environment
 
-Before installation verify:
-
-```text
-SSH
-shared disks
-ASM devices
-public/private network
-chronyd
-name resolution
-```
-
-Install `cvuqdisk` as required.
-
-Run cluster verification before Grid installation:
+## 18. `grid` `.bash_profile` on Node1
 
 ```bash
-/u01/app/19.0.0/grid/runcluvfy.sh stage -pre crsinst
+export TMP=/tmp
+export TMPDIR=$TMP
+
+export ORACLE_HOSTNAME=racnode1
+export ORACLE_BASE=/u01/app/grid
+export ORACLE_HOME=/u01/app/19.0.0/grid
+export GRID_HOME=$ORACLE_HOME
+
+export ORACLE_SID=+ASM1
+export ORACLE_TERM=xterm
+export PATH=$ORACLE_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+
+export NLS_DATE_FORMAT="DD-MON-YYYY HH24:MI:SS"
+export EDITOR=vi
+export CV_ASSUME_DISTID=OL7
 ```
 
-Launch Grid Infrastructure installer:
+## 19. `grid` `.bash_profile` on Node2
 
 ```bash
+export TMP=/tmp
+export TMPDIR=$TMP
+
+export ORACLE_HOSTNAME=racnode2
+export ORACLE_BASE=/u01/app/grid
+export ORACLE_HOME=/u01/app/19.0.0/grid
+export GRID_HOME=$ORACLE_HOME
+
+export ORACLE_SID=+ASM2
+export ORACLE_TERM=xterm
+export PATH=$ORACLE_HOME/bin:$PATH
+export LD_LIBRARY_PATH=$ORACLE_HOME/lib
+
+export NLS_DATE_FORMAT="DD-MON-YYYY HH24:MI:SS"
+export EDITOR=vi
+export CV_ASSUME_DISTID=OL7
+```
+
+## 20. `oracle` `.bash_profile` on Node1
+
+```bash
+export TMP=/tmp
+export TMPDIR=$TMP
+export ORACLE_HOSTNAME=racnode1
+export ORACLE_UNQNAME=RAC
+export ORACLE_BASE=/u01/app/oracle
+export ORACLE_HOME=/u01/app/oracle/product/19.0.0/dbhome_1
+export ORACLE_SID=RAC1
+export ORACLE_TERM=xterm
+export PATH=$ORACLE_HOME/bin:$PATH
+```
+
+## 21. `oracle` `.bash_profile` on Node2
+
+```bash
+export TMP=/tmp
+export TMPDIR=$TMP
+export ORACLE_HOSTNAME=racnode2
+export ORACLE_UNQNAME=RAC
+export ORACLE_BASE=/u01/app/oracle
+export ORACLE_HOME=/u01/app/oracle/product/19.0.0/dbhome_1
+export ORACLE_SID=RAC2
+export ORACLE_TERM=xterm
+export PATH=$ORACLE_HOME/bin:$PATH
+```
+
+---
+
+# Phase 6 — Passwordless SSH
+
+## 22. Configure Passwordless SSH for `grid` and `oracle`
+
+Do this for both users.
+
+As `grid` on node1:
+
+```bash
+ssh-keygen -t rsa
+ssh-copy-id racnode1
+ssh-copy-id racnode2
+```
+
+As `oracle` on node1:
+
+```bash
+ssh-keygen -t rsa
+ssh-copy-id racnode1
+ssh-copy-id racnode2
+```
+
+Verify:
+
+```bash
+ssh racnode1 date
+ssh racnode2 date
+```
+
+---
+
+# Phase 7 — Grid Install
+
+## 23. Unzip Grid Software on Both Nodes
+
+As `grid`:
+
+```bash
+cd /u01/app/19.0.0/grid
+unzip LINUX.X64_193000_grid_home.zip
+```
+
+## 24. Install `cvuqdisk`
+
+As root:
+
+```bash
+cd /u01/app/19.0.0/grid/cv/rpm
+rpm -ivh cvuqdisk-1.0.10-1.rpm
+```
+
+Then as `grid`:
+
+```bash
+cd $GRID_HOME
+./runcluvfy.sh stage -pre crsinst -n racnode1,racnode2 -verbose
+```
+
+## 25. Launch Grid Installer on Node1 as `grid`
+
+```bash
+export DISPLAY=192.168.56.1:0.0
+xhost +
+
+cd /u01/app/19.0.0/grid
 ./gridSetup.sh
 ```
+
+## 26. Grid Installer Selections
 
 Choose:
 
 ```text
-Configure Grid Infrastructure for a Cluster
-Cluster Name: raccluster
-ASM storage
-OCR diskgroup
-Public network:  192.168.56.x
-Private network: 192.168.57.x
+Configure Oracle Grid Infrastructure for a Cluster
 ```
 
-Run root scripts when prompted:
+Cluster Name:
 
 ```text
-orainstRoot.sh
-grid/root.sh
+raccluster
 ```
 
-Run on both nodes in the sequence instructed by the installer.
+SCAN Name:
 
----
+```text
+rac-scan
+```
 
-## 5. Grid / Cluster Validation
+SCAN Port:
 
-Validate Clusterware:
+```text
+1521
+```
+
+Nodes:
+
+```text
+racnode1
+racnode2
+```
+
+Network classification:
+
+```text
+public interfaces  = public
+private interfaces = private
+```
+
+Storage:
+
+```text
+ASM
+```
+
+Disk discovery string:
+
+```text
+/dev/asm-disk*
+```
+
+Create OCR diskgroup using:
+
+```text
+/dev/asm-disk1
+```
+
+Inventory:
+
+```text
+/u01/app/oraInventory
+```
+
+ASM groups:
+
+```text
+ASM admin = asmadmin
+ASM oper  = asmoper
+ASM dba   = asmdba
+```
+
+## 27. Fix Prerequisites if Needed
+
+```text
+chrony must be running
+cvuqdisk must be installed
+swap warning can be ignored in this lab if intentionally sized
+DNS warning was tolerated in this tested lab because /etc/hosts was used
+```
+
+## 28. Run Root Scripts When Prompted
+
+As root:
+
+```bash
+/u01/app/oraInventory/orainstRoot.sh
+/u01/app/19.0.0/grid/root.sh
+```
+
+Run on node1 first, then node2 when prompted.
+
+## 29. Verify Cluster
+
+As `grid`:
 
 ```bash
 crsctl check crs
 crsctl stat res -t
 olsnodes -n
 ocrcheck
-crsctl query css votedisk
-asmcmd lsdg
 ```
 
-Expected ASM disk groups:
+Expected:
 
 ```text
-OCR
-DATA
-FRA
+CRS online
+CSS online
+EVMD online
+both nodes visible
+OCR integrity check succeeded
 ```
 
 ---
 
-## 6. Oracle Database Software Installation
+# Phase 8 — ASM Diskgroups
 
-As the Oracle software owner:
+## 30. Login as `grid`
 
 ```bash
+sqlplus / as sysasm
+```
+
+## 31. Verify Disk Visibility
+
+```sql
+SELECT path, header_status, mount_status
+FROM v$asm_disk;
+```
+
+## 32. Create DATA Diskgroup
+
+```sql
+CREATE DISKGROUP DATA EXTERNAL REDUNDANCY
+DISK '/dev/asm-disk2'
+ATTRIBUTE 'compatible.asm'='19.0','compatible.rdbms'='19.0';
+```
+
+## 33. Create FRA Diskgroup
+
+```sql
+CREATE DISKGROUP FRA EXTERNAL REDUNDANCY
+DISK '/dev/asm-disk3'
+ATTRIBUTE 'compatible.asm'='19.0','compatible.rdbms'='19.0';
+```
+
+## 34. Verify Diskgroups
+
+```sql
+SELECT name, state, total_mb, free_mb
+FROM v$asm_diskgroup
+ORDER BY name;
+```
+
+Expected:
+
+```text
+OCR   MOUNTED
+DATA  MOUNTED
+FRA   MOUNTED
+```
+
+---
+
+# Phase 9 — DB Software Install
+
+## 35. Unzip DB Software on Both Nodes
+
+As `oracle`:
+
+```bash
+cd /u01/app/oracle/product/19.0.0/dbhome_1
+unzip LINUX.X64_193000_db_home.zip
+```
+
+## 36. Launch DB Installer on Node1 as `oracle`
+
+```bash
+cd /u01/app/oracle/product/19.0.0/dbhome_1
 ./runInstaller
 ```
+
+## 37. Critical Installer Selections
 
 Choose:
 
@@ -326,13 +735,44 @@ Install database software only
 Oracle Real Application Clusters database installation
 ```
 
-Run the database-home root script on both nodes when prompted:
+Do **not** choose:
+
+```text
+Single instance database installation
+```
+
+## 38. Select Nodes
+
+```text
+racnode1
+racnode2
+```
+
+## 39. OS Groups
+
+```text
+OSDBA       = dba
+OSOPER      = oper
+OSBACKUPDBA = backupdba
+OSDGDBA     = dgdba
+OSKMDBA     = kmdba
+OSRACDBA    = dba
+ASMDBA      = asmdba
+```
+
+## 40. Run Root Scripts When Prompted
+
+As root:
 
 ```bash
 /u01/app/oracle/product/19.0.0/dbhome_1/root.sh
 ```
 
-Verify the database home:
+Run on node1 and node2.
+
+## 41. Verify DB Home
+
+As `oracle`:
 
 ```bash
 $ORACLE_HOME/bin/sqlplus -v
@@ -341,53 +781,93 @@ $ORACLE_HOME/OPatch/opatch lsinventory
 
 ---
 
-## 7. DBCA — Create the Two-Node RAC Database
+# Phase 10 — DBCA Create 2-Node RAC Database
 
-Launch DBCA on `racnode1` as `oracle`:
+## 42. Launch DBCA on Node1 as `oracle`
 
 ```bash
 dbca
 ```
 
-Choose:
+## 43. Choose Creation Mode
 
 ```text
 Create Database
-Oracle Real Application Cluster (RAC) database
-Administrator Managed
-Advanced configuration
 ```
 
-Database configuration:
+## 44. Deployment Type
+
+```text
+Oracle Real Application Cluster (RAC) database
+Configuration type: Admin Managed
+```
+
+## 45. Use Advanced Configuration
+
+Do not use Typical for the first build.
+
+## 46. Database Name
 
 ```text
 Global database name: RAC
-Instance on node1:    RAC1
-Instance on node2:    RAC2
-Storage type:         ASM
-Datafiles:            +DATA
-Fast Recovery Area:   +FRA
-Container Database:   YES
-PDB name:             RACPDB1
-Character set:        AL32UTF8
+Instances:
+  RAC1 on node1
+  RAC2 on node2
 ```
 
-Use secure passwords locally; do not store database passwords in GitHub.
-
-Example lab memory sizing from the recovered notes:
+## 47. Storage
 
 ```text
-SGA: 1024 MB
-PGA: 512 MB
+Storage type:       ASM
+Datafiles:          +DATA
+Fast Recovery Area: +FRA
 ```
 
-Review the DBCA summary and create the database.
+## 48. Database Architecture
+
+```text
+Create as Container Database = YES
+PDB name = RACPDB1
+```
+
+## 49. Character Set
+
+```text
+AL32UTF8
+```
+
+## 50. Passwords
+
+The tested private runbook contained actual lab credentials. They are deliberately not committed to GitHub.
+
+Use secure local values:
+
+```text
+SYS      = <SECURE_LOCAL_PASSWORD>
+SYSTEM   = <SECURE_LOCAL_PASSWORD>
+PDBADMIN = <SECURE_LOCAL_PASSWORD>
+```
+
+## 51. Memory
+
+Example lab settings used in the runbook:
+
+```text
+SGA = 1024 MB
+PGA = 512 MB
+```
+
+## 52. Create Database
+
+Review the summary and click **Finish / Create**.
 
 ---
 
-## 8. Post-Build Database Validation
+# Phase 11 — Post-Build Validation
 
-Connect as SYSDBA:
+## 53. Verify Database
+
+As `oracle`:
 
 ```bash
 sqlplus / as sysdba
@@ -405,29 +885,23 @@ SELECT name, open_mode
 FROM v$pdbs;
 ```
 
-Expected baseline:
+Expected:
 
 ```text
-Database:  RAC
-CDB:       YES
-PDB:       RACPDB1
-Instances: RAC1 and RAC2
+DB name   = RAC
+CDB       = YES
+PDB       = RACPDB1
+Instances = RAC1 and RAC2
 ```
 
-Validate `srvctl`:
+## 54. Verify `srvctl`
 
 ```bash
 srvctl config database -d RAC
 srvctl status database -d RAC
 ```
 
-Validate Clusterware again:
-
-```bash
-crsctl stat res -t
-```
-
-Validate ASM contents:
+## 55. Verify ASM Usage
 
 ```bash
 asmcmd ls +DATA
@@ -436,32 +910,31 @@ asmcmd ls +FRA
 
 ---
 
-## 9. DBCA Failure / Cleanup Procedure
+# Phase 12 — If DBCA Fails
 
-If DBCA offers to revert a failed creation, choose **YES**.
+## 56. If GUI Asks to Revert
 
-Inspect ASM first:
+Choose:
+
+```text
+YES
+```
+
+## 57. Clean Partial Residue
 
 ```bash
 asmcmd ls +DATA
 asmcmd ls +FRA
 ```
 
-Check whether RAC directories remain:
-
-```bash
-asmcmd ls +DATA/RAC
-asmcmd ls +FRA/RAC
-```
-
-If stale RAC directories remain after confirming they belong only to the failed database creation:
+If `RAC/` remains and it belongs only to the failed DBCA attempt:
 
 ```bash
 asmcmd rm -rf +DATA/RAC
 asmcmd rm -rf +FRA/RAC
 ```
 
-Check local database residue:
+## 58. Check Local Residue
 
 ```bash
 ps -ef | grep pmon
@@ -469,64 +942,39 @@ cat /etc/oratab | grep RAC
 ls $ORACLE_HOME/dbs | grep -i RAC
 ```
 
-If stale database-home files remain:
+Remove stale files if needed:
 
 ```bash
 rm -f $ORACLE_HOME/dbs/*RAC*
 ```
 
-Check Clusterware database registration:
+## 59. Check `srvctl`
 
 ```bash
 srvctl config database -d RAC
 ```
 
-If a stale database configuration exists:
+If stale configuration exists:
 
 ```bash
 srvctl remove database -d RAC -force
 ```
 
-Do not wipe OCR, voting, DATA, or FRA disks after Grid Infrastructure is successfully built unless intentionally rebuilding the entire cluster.
+---
+
+# Final Rules
+
+1. Grid first, database second.
+2. Keep one UDEV rules file only.
+3. Do not wipe OCR/data disks after build unless rebuilding everything.
+4. For RAC DB creation, the DB home must be installed using **Oracle Real Application Clusters database installation**.
+5. Use Advanced DBCA for the first build.
+6. Keep disk mapping fixed and documented.
+7. Do not guess after failure; clean residue before retry.
+8. Never commit passwords or other live credentials to GitHub.
 
 ---
 
-## 10. Final Validation Checklist
+## Provenance
 
-```bash
-crsctl check crs
-crsctl stat res -t
-olsnodes -n
-ocrcheck
-crsctl query css votedisk
-asmcmd lsdg
-srvctl status database -d RAC
-srvctl config database -d RAC
-```
-
-Recommended evidence capture:
-
-```bash
-mkdir -p /root/rac_build_evidence
-```
-
-Store validation outputs there during rebuild/troubleshooting sessions.
-
----
-
-## 11. Build Rules Preserved from the Lab
-
-1. **Grid first, database second.**
-2. Keep one authoritative udev rules file.
-3. Do not wipe OCR/data disks after Grid build unless rebuilding everything.
-4. Install the database home using **Oracle Real Application Clusters database installation**.
-5. Use **Advanced DBCA** for the first build.
-6. Keep shared-disk mappings fixed and documented.
-7. Validate Clusterware, OCR, voting disks, ASM, database registration, and both RAC instances before declaring the build complete.
-8. Do not embed passwords in reusable documentation.
-
----
-
-## 12. Source-Recovery Notes
-
-This GitHub runbook was reconstructed from the user's existing `Oracle19c_RAC_Runbook_v2.txt` plus the reviewed/current-lab supplements. The current-lab correction is authoritative for networking: the private interconnect is `192.168.57.101/102`, not the older `10.0.0.101/102` values. The SCAN entry is the single lab SCAN IP `192.168.56.120`.
+This file replaces the earlier reconstructed RAC document with the user's tested and reused runbook as the authoritative implementation reference. Formatting was converted to Markdown and the embedded database passwords were sanitized; the implementation sequence, lab values, commands, installer selections, and recovery steps were otherwise retained from the tested runbook.
