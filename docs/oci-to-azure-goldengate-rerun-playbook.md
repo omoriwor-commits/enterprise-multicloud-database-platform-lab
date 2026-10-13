@@ -1,6 +1,6 @@
 # OCI Oracle 26ai → Azure SQL Server 2022: GoldenGate Rerun Playbook
 
-**Implementation history:** The original OCI-to-Azure implementation is reported complete by the project owner. The dated September 2026 checkpoint documents connectivity, source capture, trails and Replicat preparation, not the final target-apply evidence. This playbook is for reproducing the deployment, collecting new outputs and making any differences explicit.
+**Implementation history:** I completed the original OCI-to-Azure implementation. The dated September 2026 checkpoint documents connectivity, source capture, trails and Replicat preparation, not the final target-apply evidence. This playbook is for reproducing the deployment, collecting new outputs and making any differences explicit.
 
 ## 1. Scope and recorded topology
 
@@ -110,7 +110,7 @@ Collect real reports. Do not recreate or reposition an existing Extract at an ar
 
 ## 5. RMAN / Data Pump and baseline synchronization
 
-**RMAN and Data Pump were used for initial-load work in the local Oracle 26ai→OCI project**, confirmed by the project owner. Do not assume the identical tools or sequence apply automatically to heterogeneous **Oracle→SQL Server** loading. Select a SQL Server-compatible baseline method for the Azure target and reconcile datatype mapping, schema, constraints and identity/LOB handling.
+Select an Oracle-to-SQL Server-compatible baseline method and reconcile datatype mapping, schema, constraints and identity/LOB handling.
 
 Before starting Replicat on an existing target:
 
