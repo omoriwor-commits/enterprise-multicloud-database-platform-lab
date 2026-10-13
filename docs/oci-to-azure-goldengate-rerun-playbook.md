@@ -14,6 +14,24 @@
 
 Do **not** transplant the recorded IP addresses, users, process names, wallet contents, or deployment home directories without reconciling them with the new environment. The September checkpoint contains historical details only.
 
+## Process-placement diagram
+
+```text
+OCI: Oracle 26ai (PDB23AI)
+        |
+        | Oracle Net over OCI-Azure IPsec/BGP
+        v
+AZURE: Dedicated GoldenGate hub / Oracle Linux 9.8
+  DEP1      EXTORA: remote Integrated Extract -> trail ea
+  MSSQLDEP  REPSQL: remote SQL Server apply (ODBC SQL_TGT)
+        |
+        | TCP 1433 / Microsoft ODBC driver
+        v
+AZURE: SQL Server 2022 / OGGTargetDB.HOLA.FOX
+```
+
+Remote describes Extract/Replicat database connectivity **relative to the hub**. It is not a claim that the Extract runs on the OCI database VM or that Replicat runs on the SQL Server VM.
+
 ## 2. Sequence and checkpoints
 
 | Phase | Action | Required gate before advancing |
