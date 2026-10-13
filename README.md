@@ -17,31 +17,23 @@ OCI Oracle 26ai
 ## Target Architecture
 
 ```text
-OCI
-Oracle Database 26ai
-10.50.0.0/16
-        |
-        | Route-based IPsec/IKEv2 + BGP
-        v
-Azure
-Dedicated Oracle GoldenGate 26ai Hub
-10.60.30.0/24
-        |
-        +-- Oracle runtime / DEP1
-        |     Remote Integrated Extract EXTORA
-        |     Trail ./dirdat/ea
-        |
-        +-- SQL Server runtime / MSSQLDEP
-              Replicat REPSQL (historical configuration name; final output to archive)
-        |
-        v
-Azure SQL Server 2022
-10.60.20.0/24
-OGGTargetDB.HOLA.FOX
-
-Future:
-AWS PostgreSQL 10.70.0.0/16
-GCP PostgreSQL 10.80.0.0/16
+OCI SOURCE (10.50.0.0/16)                   AZURE (10.60.0.0/16)
++---------------------------+               +-----------------------------------+
+| Oracle AI Database 26ai   |               | Dedicated GoldenGate hub         |
+| CDB23AI / PDB23AI         |--- IPsec/BGP ->| OL 9.8 / snet-goldengate         |
+| Oracle listener TCP 1521  |               |                                   |
++---------------------------+               | DEP1: EXTORA REMOTE capture       |
+                                            |       trail ea                    |
+                                            | MSSQLDEP: REPSQL REMOTE apply     |
+                                            +-----------------+-----------------+
+                                                              |
+                                                              | ODBC SQL_TGT / TCP 1433
+                                                              v
+                                            +-----------------------------------+
+                                            | Azure SQL Server 2022             |
+                                            | OGGTargetDB / HOLA.FOX             |
+                                            | snet-database (private)           |
+                                            +-----------------------------------+
 ```
 
 The deployment uses **remote Integrated Extract for Oracle source capture** from the Azure GoldenGate hub and **remote Replicat apply to SQL Server 2022** from the dedicated SQL Server GoldenGate runtime on that hub. GoldenGate's Oracle and SQL Server software deployments are separate; the hub accesses the OCI source and Azure SQL Server over the private network. **Implementation status:** I completed the OCI Oracle-to-Azure SQL Server implementation. The detailed repository snapshot below reflects the September 2026 build checkpoint; a fresh rerun will archive final configuration and target-side CDC evidence.
