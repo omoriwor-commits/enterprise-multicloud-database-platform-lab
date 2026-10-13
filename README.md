@@ -44,7 +44,7 @@ AWS PostgreSQL 10.70.0.0/16
 GCP PostgreSQL 10.80.0.0/16
 ```
 
-GoldenGate is deployed as a **dedicated hub with remote capture and remote apply**. **Implementation status:** I completed the OCI Oracle-to-Azure SQL Server implementation. The detailed repository snapshot below reflects the September 2026 build checkpoint; a fresh rerun will archive final configuration and target-side CDC evidence.
+The deployment uses **remote Integrated Extract for Oracle source capture** from the Azure GoldenGate hub and **remote Replicat apply to SQL Server 2022** from the dedicated SQL Server GoldenGate runtime on that hub. GoldenGate's Oracle and SQL Server software deployments are separate; the hub accesses the OCI source and Azure SQL Server over the private network. **Implementation status:** I completed the OCI Oracle-to-Azure SQL Server implementation. The detailed repository snapshot below reflects the September 2026 build checkpoint; a fresh rerun will archive final configuration and target-side CDC evidence.
 
 ## Documentation
 
