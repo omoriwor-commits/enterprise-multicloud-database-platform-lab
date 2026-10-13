@@ -48,7 +48,7 @@ GoldenGate is deployed as a **dedicated hub with remote capture and remote apply
 
 ## Documentation
 
-- [Full project history, incidents, troubleshooting, resolutions, and current state](docs/project-history-and-troubleshooting.md)
+- [Full project history, incidents, troubleshooting, resolutions, and current state](docs/project-history/project-history-and-troubleshooting.md)
 - [September 9, 2026 Oracle-to-SQL Server Replicat preparation checkpoint](docs/checkpoints/2026-09-09-oracle-to-sqlserver-replicat-prep.md)
 - [September 7, 2026 Oracle-to-SQL Server CDC checkpoint](docs/checkpoints/2026-09-07-oracle-to-sqlserver-cdc-progress.md)
 - [Azure foundation and multi-cloud implementation plan](docs/azure/phase-1-azure-foundation.md)
