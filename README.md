@@ -4,7 +4,7 @@
 
 This repository documents a hands-on multi-cloud database engineering lab focused on heterogeneous migration, Change Data Capture (CDC), database administration, cloud networking, security, troubleshooting, operational controls, and production-style runbooks across Oracle Cloud Infrastructure (OCI), Microsoft Azure, and later AWS/GCP.
 
-The completed implementation architecture (project owner confirmation) is:
+My completed implementation architecture is:
 
 ```text
 OCI Oracle 26ai
@@ -44,7 +44,7 @@ AWS PostgreSQL 10.70.0.0/16
 GCP PostgreSQL 10.80.0.0/16
 ```
 
-GoldenGate is deployed as a **dedicated hub with remote capture and remote apply**. **Implementation status:** The project owner confirms completion of the OCI Oracle-to-Azure SQL Server migration. The detailed repository snapshot below reflects the September 2026 build checkpoint; a fresh rerun will archive final configuration and target-side CDC evidence.
+GoldenGate is deployed as a **dedicated hub with remote capture and remote apply**. **Implementation status:** I completed the OCI Oracle-to-Azure SQL Server implementation. The detailed repository snapshot below reflects the September 2026 build checkpoint; a fresh rerun will archive final configuration and target-side CDC evidence.
 
 ## Documentation
 
@@ -287,7 +287,7 @@ The SQL Server Administration UI is now reachable and identifies itself as:
 Oracle GoldenGate 23.26.1.0.1 for Microsoft SQL Server (MSSQLDEP)
 ```
 
-## Replicat Preparation — In Progress
+## Replicat Configuration — September 2026 Checkpoint
 
 Checkpoint table created:
 
@@ -314,7 +314,7 @@ Checkpoint table:    ogg_repl.ggs_checkpoint
 Begin:               Position in Trail
 ```
 
-**Historical checkpoint:** At the date of this configuration snapshot, trail positioning and Replicat target apply were still being prepared. The owner subsequently completed the project; the planned rerun will preserve the final target-side outputs.
+**Historical checkpoint:** At the date of this configuration snapshot, trail positioning and Replicat target apply were still being prepared. I completed the implementation afterward; the rerun will capture the final target-side outputs.
 
 ## Archived Build Checkpoint — September 9, 2026
 
@@ -338,7 +338,7 @@ Begin:               Position in Trail
 | GoldenGate `SQL_TGT` connection | Validated |
 | `ogg_repl.ggs_checkpoint` | Created |
 | `REPSQL` | Configuration in progress at September checkpoint |
-| End-to-end Oracle -> SQL Server apply | Not yet captured in September checkpoint; completion reported subsequently |
+| End-to-end Oracle -> SQL Server apply | Not recorded at September checkpoint; later completion confirmed by me, with rerun output to archive |
 
 ## Major Troubleshooting Cases Recorded
 
@@ -367,10 +367,10 @@ Detailed chronology and evidence are maintained in the project history and dated
 - Open only the GoldenGate management port currently required for browser administration.
 - Add TLS/HTTPS before treating the GoldenGate management plane as production-like.
 
-## Rerun and Evidence Capture Checklist
+## Repeat Implementation — Verification Sequence
 
-1. Complete `REPSQL` Replicat Options and verify the correct trail start position.
-2. Complete the Replicat parameter file for Oracle `HOLA.FOX` -> SQL Server `HOLA.FOX`.
+1. Recreate and verify `REPSQL` Replicat options and trail start position in the new environment.
+2. Recreate the Replicat parameter file for Oracle `HOLA.FOX` -> SQL Server `HOLA.FOX`.
 3. Start `REPSQL` and inspect report/log output.
 4. Verify existing captured trail records apply correctly.
 5. Generate controlled INSERT, UPDATE, and DELETE transactions on Oracle.
