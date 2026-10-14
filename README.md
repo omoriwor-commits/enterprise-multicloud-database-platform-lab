@@ -24,7 +24,7 @@ OCI Oracle 26ai
 
 **Evidence to publish on rerun:** Sanitized final Replicat reports, source/target DML comparisons, lag/checkpoint observations and restart/reconciliation outputs.
 
-## Target Architecture
+## Architecture
 
 ```text
 OCI SOURCE (10.50.0.0/16)                AZURE (10.60.0.0/16)
@@ -121,13 +121,7 @@ GoldenGate schema:    ogg_repl
 Checkpoint table:     ogg_repl.ggs_checkpoint
 ```
 
-Validated `ogg_repl` database roles currently include:
-
-```text
-db_owner
-db_datareader
-db_datawriter
-```
+`ogg_repl` was granted `db_owner` for the lab build. Before any production use I would scope it down to only the permissions Replicat needs.
 
 The SQL Server VM remains privately managed. Administration uses a controlled SSH/RDP tunnel through the GoldenGate hub rather than assigning a public IP to SQL Server.
 
@@ -172,7 +166,7 @@ Replication schema:            ogg_repl
 
 Both deployments are running independently.
 
-## Oracle Extract Validation
+## September Checkpoint: Extract Capture (before Replicat apply)
 
 ```text
 Extract:               EXTORA
@@ -193,7 +187,7 @@ Operations:       2
 Metadata records: 1
 ```
 
-This proves Oracle source changes are being captured and written to the GoldenGate trail.
+This September snapshot confirmed source capture to the trail. Final end-to-end apply of INSERT, UPDATE and DELETE was validated later (see Final outcome).
 
 ## Major Troubleshooting Cases Recorded
 
