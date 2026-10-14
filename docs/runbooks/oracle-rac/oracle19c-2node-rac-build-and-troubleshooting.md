@@ -1,6 +1,6 @@
-# Oracle 19c 2-Node RAC Build — Simple Real-World Runbook
+# Oracle 19c Two-Node RAC Build and Troubleshooting Runbook
 
-**Status:** Tested and reused in the user's RAC lab.  
+**Status:** Tested and reused in my two-node RAC lab.  
 **Purpose:** Build Oracle 19c 2-node RAC from scratch in a clean, repeatable way.  
 **Security:** Database passwords from the verified local runbook have been replaced with placeholders before publishing to GitHub.
 
@@ -977,4 +977,4 @@ srvctl remove database -d RAC -force
 
 ## Provenance
 
-This file replaces the earlier reconstructed RAC document with the user's tested and reused runbook as the authoritative implementation reference. Formatting was converted to Markdown and the embedded database passwords were sanitized; the implementation sequence, lab values, commands, installer selections, and recovery steps were otherwise retained from the tested runbook.
+This is my tested and reused RAC build runbook, converted to Markdown. Database passwords have been replaced with placeholders; all other values, commands, installer selections and recovery steps are unchanged.
