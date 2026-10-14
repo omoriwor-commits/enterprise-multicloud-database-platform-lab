@@ -4,7 +4,7 @@
 
 This repository documents a hands-on multi-cloud database engineering lab focused on heterogeneous migration, Change Data Capture (CDC), database administration, cloud networking, security, troubleshooting, operational controls, and production-style runbooks across Oracle Cloud Infrastructure (OCI), Microsoft Azure, and later AWS/GCP.
 
-This is **Migration 3 — Oracle-to-SQL Server Cross-Cloud Heterogeneous Migration & GoldenGate Replication**, the final stage of my three-stage path (19c → 26ai on-prem, on-prem → OCI, OCI → Azure SQL Server 2022).
+This is **Migration 3 — Oracle 26ai (OCI) to Azure SQL Server 2022: Heterogeneous Cross-Cloud Migration & GoldenGate Replication**, the final stage of my three-stage path (19c → 26ai on-prem, on-prem → OCI, OCI → Azure SQL Server 2022).
 
 My completed implementation architecture is:
 
