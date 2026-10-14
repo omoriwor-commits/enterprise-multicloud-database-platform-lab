@@ -4,8 +4,8 @@ Oracle RAC Technical Health and Business Risk Summary
 Python 3.6 compatible; no external modules required.
 
 Recommended execution:
-    chmod 750 rac_health_fixed.py
-    ./rac_health_fixed.py
+    chmod 750 rac_health_check.py
+    ./rac_health_check.py
 
 Optional overrides:
     DB_UNIQUE_NAME=RAC

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository documents a hands-on multi-cloud database engineering lab focused on heterogeneous migration, Change Data Capture (CDC), database administration, cloud networking, security, troubleshooting, operational controls, and production-style runbooks across Oracle Cloud Infrastructure (OCI) and Microsoft Azure.
+This repository documents my Oracle-to-SQL Server migration across OCI and Azure using GoldenGate 26ai, including the cloud networking, troubleshooting and validation behind it.
 
 This is **Migration 3 — Oracle 26ai (OCI) to Azure SQL Server 2022: Heterogeneous Cross-Cloud Migration & GoldenGate Replication**, the final stage of my three-stage path (19c → 26ai on-prem, on-prem → OCI, OCI → Azure SQL Server 2022).
 
@@ -340,7 +340,7 @@ Begin:               Position in Trail
 | GoldenGate `SQL_TGT` connection | Validated |
 | `ogg_repl.ggs_checkpoint` | Created |
 | `REPSQL` | Configuration in progress at September checkpoint |
-| End-to-end Oracle -> SQL Server apply | Not recorded at September checkpoint; later completion confirmed by me, with rerun output to archive |
+| End-to-end Oracle -> SQL Server apply | Completed after this checkpoint — see Final outcome |
 
 ## Major Troubleshooting Cases Recorded
 
@@ -361,13 +361,12 @@ Detailed chronology and evidence are maintained in the project history and dated
 
 ## Security Controls
 
-- No broad public database-listener exposure.
-- Do not permit `0.0.0.0/0 -> 1433` or `0.0.0.0/0 -> 1521`.
-- Restrict management access to known source addresses.
-- Keep passwords, PSKs, private keys, and credential-store secrets out of GitHub.
-- Keep SQL Server RDP private where a controlled jump/tunnel path is available.
-- Open only the GoldenGate management port currently required for browser administration.
-- Add TLS/HTTPS before treating the GoldenGate management plane as production-like.
+- Database listeners are not publicly exposed; no 0.0.0.0/0 rules for 1433 or 1521.
+- Management access is restricted to known source addresses.
+- SQL Server RDP stays private and is reached through an SSH tunnel.
+- Only the GoldenGate management port needed for browser administration is open.
+- Passwords, PSKs, private keys and credential-store secrets are kept out of GitHub.
+- The GoldenGate management plane does not yet use TLS/HTTPS; I would add it before any production-like use.
 
 ## Repeat Implementation — Verification Sequence
 

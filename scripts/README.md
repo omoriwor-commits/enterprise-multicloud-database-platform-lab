@@ -10,6 +10,6 @@ Purpose: operational health checking for Oracle Data Guard environments.
 
 ## Oracle RAC
 
-- [rac_health_fixed.py](oracle-rac/rac_health_fixed.py)
+- [rac_health_check.py](oracle-rac/rac_health_check.py)
 
 Purpose: Oracle RAC health and operational validation.
