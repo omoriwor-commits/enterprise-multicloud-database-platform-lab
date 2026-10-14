@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 #
 # Oracle Data Guard Health Check Command Pack
-# Status: REVIEWED / IMPROVED — NOT YET LAB-VALIDATED
 #
 # Purpose:
 #   Run a practical Oracle Data Guard health review against the current database

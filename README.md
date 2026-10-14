@@ -46,12 +46,11 @@ OCI SOURCE (10.50.0.0/16)                AZURE (10.60.0.0/16)
                                          +-------------------------------------+
 ```
 
-The deployment uses **remote Integrated Extract for Oracle source capture** from the Azure GoldenGate hub and **remote Replicat apply to SQL Server 2022** from the dedicated SQL Server GoldenGate runtime on that hub. GoldenGate's Oracle and SQL Server software deployments are separate; the hub accesses the OCI source and Azure SQL Server over the private network. **Implementation status:** I completed the OCI Oracle-to-Azure SQL Server implementation. The detailed repository snapshot below reflects the September 2026 build checkpoint; a fresh rerun will archive final configuration and target-side CDC evidence.
+The deployment uses **remote Integrated Extract for Oracle source capture** from the Azure GoldenGate hub and **remote Replicat apply to SQL Server 2022** from the dedicated SQL Server GoldenGate runtime on that hub. GoldenGate's Oracle and SQL Server software deployments are separate; the hub accesses the OCI source and Azure SQL Server over the private network.
 
 ## Documentation
 
 - [OCI Oracle → Azure SQL Server GoldenGate rerun playbook](docs/oci-to-azure-goldengate-rerun-playbook.md) — ordered build gates, diagnostics, source/target validation and evidence capture.
-
 - [Full project history, incidents, troubleshooting, resolutions, and current state](docs/project-history/project-history-and-troubleshooting.md)
 - [September 9, 2026 Oracle-to-SQL Server Replicat preparation checkpoint](docs/checkpoints/2026-09-09-oracle-to-sqlserver-replicat-prep.md)
 - [September 7, 2026 Oracle-to-SQL Server CDC checkpoint](docs/checkpoints/2026-09-07-oracle-to-sqlserver-cdc-progress.md)
@@ -368,15 +367,6 @@ Detailed chronology and evidence are maintained in the project history and dated
 - Passwords, PSKs, private keys and credential-store secrets are kept out of GitHub.
 - The GoldenGate management plane does not yet use TLS/HTTPS; I would add it before any production-like use.
 
-## Repeat Implementation — Verification Sequence
+## Rerun
 
-1. Recreate and verify `REPSQL` Replicat options and trail start position in the new environment.
-2. Recreate the Replicat parameter file for Oracle `HOLA.FOX` -> SQL Server `HOLA.FOX`.
-3. Start `REPSQL` and inspect report/log output.
-4. Verify existing captured trail records apply correctly.
-5. Generate controlled INSERT, UPDATE, and DELETE transactions on Oracle.
-6. Validate delivery into SQL Server.
-7. Reconcile source/target row counts and values.
-8. Test Replicat stop/start and checkpoint recovery.
-9. Measure lag and verify no duplicate apply after restart.
-10. Document cutover/rollback and failure-injection results.
+The step-by-step rebuild and evidence capture are in the [rerun playbook](docs/oci-to-azure-goldengate-rerun-playbook.md).
