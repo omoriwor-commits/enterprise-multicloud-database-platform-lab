@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository documents a hands-on multi-cloud database engineering lab focused on heterogeneous migration, Change Data Capture (CDC), database administration, cloud networking, security, troubleshooting, operational controls, and production-style runbooks across Oracle Cloud Infrastructure (OCI), Microsoft Azure, and later AWS/GCP.
+This repository documents a hands-on multi-cloud database engineering lab focused on heterogeneous migration, Change Data Capture (CDC), database administration, cloud networking, security, troubleshooting, operational controls, and production-style runbooks across Oracle Cloud Infrastructure (OCI) and Microsoft Azure.
 
 This is **Migration 3 — Oracle 26ai (OCI) to Azure SQL Server 2022: Heterogeneous Cross-Cloud Migration & GoldenGate Replication**, the final stage of my three-stage path (19c → 26ai on-prem, on-prem → OCI, OCI → Azure SQL Server 2022).
 
@@ -14,7 +14,7 @@ OCI Oracle 26ai
 -> Azure SQL Server 2022
 ```
 
-> This is a self-directed lab environment. The repository deliberately records failures, troubleshooting evidence, root-cause analysis, remediation, validation, and unresolved work rather than presenting only successful end states.
+> This is a self-directed lab environment. The repository deliberately records failures, troubleshooting evidence, root-cause analysis, remediation and validation rather than presenting only successful end states.
 
 ## Final outcome
 
@@ -289,7 +289,7 @@ The SQL Server Administration UI is now reachable and identifies itself as:
 Oracle GoldenGate 23.26.1.0.1 for Microsoft SQL Server (MSSQLDEP)
 ```
 
-## Replicat Configuration — September 2026 Checkpoint
+## Replicat Configuration (September 2026 snapshot)
 
 Checkpoint table created:
 
@@ -297,7 +297,7 @@ Checkpoint table created:
 ogg_repl.ggs_checkpoint
 ```
 
-Replicat creation has started with:
+At that point, Replicat creation had started with:
 
 ```text
 Replicat Type: Classic Replicat
@@ -305,7 +305,7 @@ Process Name:  REPSQL
 Description:   Oracle HOLA.FOX to SQL Server HOLA.FOX
 ```
 
-Current Replicat Options being prepared:
+Replicat options being prepared at that point:
 
 ```text
 Trail name:          ea
@@ -381,19 +381,3 @@ Detailed chronology and evidence are maintained in the project history and dated
 8. Test Replicat stop/start and checkpoint recovery.
 9. Measure lag and verify no duplicate apply after restart.
 10. Document cutover/rollback and failure-injection results.
-11. Continue into AWS PostgreSQL after Oracle-to-SQL Server CDC is stable.
-
-## Troubleshooting Method
-
-```text
-Detect
-  -> Collect Evidence
-  -> Isolate Failure Domain
-  -> Identify Root Cause
-  -> Remediate
-  -> Validate
-  -> Prevent Recurrence
-  -> Document RCA
-```
-
-This repository will continue to be updated incrementally with implementation procedures, architecture diagrams, commands, validation evidence, troubleshooting cases, migration runbooks, rollback procedures, and lessons learned.
