@@ -177,7 +177,7 @@ At each gate, capture Extract/Replicat reports, checkpoints, source and target S
 | Replicat abends | Report/discard files, SQL Server constraint/key or mapping error, unsupported datatype, checkpoint position |
 | Rows diverge | Instantiation/CSN boundary, transformations, ignored errors, collisions, missed DML or unsupported DDL |
 
-Relevant historical evidence: [project history](project-history-and-troubleshooting.md), [September 7 checkpoint](checkpoints/2026-09-07-oracle-to-sqlserver-cdc-progress.md), [September 9 checkpoint](checkpoints/2026-09-09-oracle-to-sqlserver-replicat-prep.md).
+Relevant historical evidence: [project history](project-history/project-history-and-troubleshooting.md), [September 7 checkpoint](checkpoints/2026-09-07-oracle-to-sqlserver-cdc-progress.md), [September 9 checkpoint](checkpoints/2026-09-09-oracle-to-sqlserver-replicat-prep.md).
 
 ## 9. Evidence package after rerun
 
