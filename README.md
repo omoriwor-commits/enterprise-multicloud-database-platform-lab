@@ -16,6 +16,14 @@ OCI Oracle 26ai
 
 > This is a self-directed lab environment. The repository deliberately records failures, troubleshooting evidence, root-cause analysis, remediation, validation, and unresolved work rather than presenting only successful end states.
 
+## Final migration outcome and evidence chronology
+
+**Completed in my earlier independent lab (firsthand confirmation):** I completed the third stage of my migration path from Oracle AI Database 26ai on OCI, through the Azure GoldenGate 26ai hub, to Azure SQL Server 2022. I verified end-to-end target apply of INSERT, UPDATE and DELETE operations; the results matched the intended one-way CDC behavior. This confirms the final outcome I observed, not an independently archived final SQL Server comparison report.
+
+**Historical evidence:** The September build checkpoints show earlier stages when Extract, trails, networking, SQL Server access and Replicat preparation were being validated. They remain dated snapshots, not the final status. Detailed incident diagnoses and remedies are preserved in the [project history](docs/project-history/project-history-and-troubleshooting.md), including VPN/BGP negotiation, GoldenGate startup and OGGCA lifecycle, management access, SQL Server connectivity, and Oracle FRA exhaustion.
+
+**Evidence to publish on rerun:** Sanitized final Replicat reports, source/target DML comparisons, lag/checkpoint observations and restart/reconciliation outputs. No unrecorded measurements are claimed.
+
 ## Target Architecture
 
 ```text

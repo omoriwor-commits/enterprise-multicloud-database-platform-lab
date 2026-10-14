@@ -9,6 +9,10 @@
 
 ---
 
+## Final outcome — later than the dated checkpoints
+
+I subsequently completed the OCI Oracle 26ai → Azure GoldenGate 26ai → Azure SQL Server 2022 one-way CDC implementation and personally verified INSERT, UPDATE and DELETE replication at the SQL Server target. This is the third migration in my connected three-stage lab path. The incident chronology and September checkpoints below record the earlier build and troubleshooting stages; their then-open tasks should not be mistaken for the final outcome. The sanitized final target-side validation logs and restart/reconciliation evidence have not yet been archived here and will be collected on a rerun. This statement records my firsthand report, not a new independently verified test.
+
 ## 1. Project Goal and Target Architecture
 
 The lab is a production-style heterogeneous database engineering environment spanning multiple cloud providers. It is designed to practice database migration, CDC, cloud networking, GoldenGate administration, security, failure analysis, backup/recovery, validation, cutover, rollback, and operational runbooks.
