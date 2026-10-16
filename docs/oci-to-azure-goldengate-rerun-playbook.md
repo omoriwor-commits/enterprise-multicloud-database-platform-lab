@@ -202,4 +202,4 @@ Never commit passwords, wallet files, client private keys, real customer data or
 
 - [GoldenGate 26ai core docs](https://docs.oracle.com/en/database/goldengate/core/26/coredoc/index.html)
 - [GoldenGate 26ai command reference](https://docs.oracle.com/en/database/goldengate/core/26/gclir/index.html)
-- [OCI VCN field guide](https://github.com/omoriwor-commits/DovOps_T/blob/main/OCI/engineering/01-vcn-public-private-subnets-internet-nat-gateways.md)
+- [OCI VCN field guide](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/main/OCI/engineering/01-vcn-public-private-subnets-internet-nat-gateways.md)
