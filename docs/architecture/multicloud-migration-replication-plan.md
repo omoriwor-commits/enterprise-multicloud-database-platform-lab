@@ -1,6 +1,8 @@
 # Enterprise Data Platform Lab — Multi-Cloud Migration & Replication Plan
 
 **Checkpoint Date:** September 6, 2026  
+
+> Dated record. Status sections below are historical; see the [README Final outcome](../../README.md#final-outcome) for the current state.
 **Project:** Enterprise Data Platform / Multi-Cloud Migration & Replication Lab
 
 ## 1. Target Architecture
@@ -782,6 +784,6 @@ The lab should provide enough operational evidence to explain:
 - How networking, security, credentials, and database privileges affect CDC
 - How the architecture extends to AWS and GCP
 
-Interview-level summary:
+Interview-level summary (updated October 2026):
 
-> Built a heterogeneous multi-cloud database migration and replication lab spanning OCI Oracle, Azure SQL Server, Oracle GoldenGate, AWS PostgreSQL, and Google Cloud PostgreSQL. Implemented OCI-Azure IPsec/IKEv2 connectivity with BGP, diagnosed and corrected a PSK mismatch, deployed a dedicated GoldenGate 26ai Microservices hub, resolved GoldenGate installation/lifecycle and remote-management failures, validated private Oracle and SQL Server network paths, and performed evidence-driven RCA of an Oracle FRA/redo stall. The lab is progressing into Oracle-to-SQL Server CDC, followed by restart/recovery, reconciliation, bidirectional replication, conflict handling, cutover, and rollback testing.
+> I built a cross-cloud lab that replicates Oracle AI Database 26ai on OCI into SQL Server 2022 on Azure through a dedicated GoldenGate 26ai hub. I set up the OCI-Azure IPsec/IKEv2 VPN with BGP, tracked down a pre-shared-key mismatch, worked through GoldenGate install and lifecycle failures, and diagnosed an FRA exhaustion that stalled redo archiving. I verified one-way INSERT, UPDATE and DELETE apply; sanitized target-side logs will be published after the rerun. AWS and Google Cloud PostgreSQL are planned, not built.
