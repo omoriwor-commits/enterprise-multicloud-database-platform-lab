@@ -538,7 +538,7 @@ cd $GRID_HOME
 
 ```bash
 export DISPLAY=192.168.56.1:0.0
-xhost +
+xhost +192.168.56.101   # on the X server: allow only racnode1, not every host
 
 cd /u01/app/19.0.0/grid
 ./gridSetup.sh

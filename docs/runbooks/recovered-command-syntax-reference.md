@@ -761,7 +761,7 @@ This is the checkpoint table to select when configuring the SQL Server Replicat.
 
 ---
 
-# 15. Current Replicat Configuration — REPSQL
+# 15. Replicat Configuration — REPSQL (September 2026 snapshot)
 
 Replicat selected:
 
@@ -804,7 +804,7 @@ Expected MAP/TARGET syntax when the Replicat parameter page is reached:
 MAP HOLA.FOX, TARGET HOLA.FOX;
 ```
 
-Do not treat the replication project as complete until `REPSQL` is created, started, and INSERT/UPDATE/DELETE delivery is validated end-to-end.
+This was the configuration at the September snapshot. I completed `REPSQL` apply afterward; see the [README Final outcome](../../README.md#final-outcome).
 
 ---
 
@@ -896,6 +896,6 @@ Recovered areas include:
 - Azure NSG rule pattern
 - `SQL_TGT` creation parameters
 - checkpoint table naming
-- current `REPSQL` configuration baseline
+- September `REPSQL` configuration baseline
 
 This file should continue to receive important reproducible syntax as the remaining replication, validation, failure/recovery, restart, reconciliation, and AWS PostgreSQL phases are completed.

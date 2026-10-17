@@ -1,6 +1,8 @@
 # Enterprise Data Platform Lab — Multi-Cloud Migration & Replication Plan
 
 **Checkpoint Date:** August 25, 2026
+
+> Dated record. Status items below reflect August to September 2026. For the current state, see the [README Final outcome](../../README.md#final-outcome).
 **Project:** Enterprise Data Platform / Multi-Cloud Migration & Replication Lab
 
 ## 1. Target Architecture
@@ -58,7 +60,6 @@ The lab will deliberately practice both:
 * Shape: `VM.Standard.E5.Flex`
 * OCPU: `1`
 * Memory: `12 GB`
-* Public IPv4: `170.9.255.52`
 * Private IPv4: `10.50.10.178`
 
 ### OCI Network
@@ -244,7 +245,7 @@ SKU:          VpnGw1AZ
 VPN type:     Route-based
 Azure ASN:    65515
 Azure APIPA:  169.254.21.2
-Public IP:    48.206.217.77
+Public IP:    <redacted>
 ```
 
 ---
@@ -391,7 +392,6 @@ vnet-enterprise-data-platform-lab
 │   10.60.20.0/24
 │   └── vm-sqlserver-lab-01
 │       Private IP: 10.60.20.4
-│       Public IP: 168.62.51.6
 │       SQL Server 2022 Developer
 │       Windows Server 2022
 │       Standard_D2as_v7
@@ -407,7 +407,7 @@ vnet-enterprise-data-platform-lab
         VPN type: Route-based
         Azure ASN: 65515
         Azure APIPA: 169.254.21.2
-        Public IP: 48.206.217.77
+        Public IP: <redacted>
 
 AWS
 10.70.0.0/16
@@ -631,7 +631,7 @@ GatewaySubnet: 10.60.254.0/27
 BGP:           Enabled
 Azure ASN:     65515
 Azure APIPA:   169.254.21.2
-Public IP:     48.206.217.77
+Public IP:     <redacted>
 ```
 
 OCI DRG created:
@@ -661,7 +661,7 @@ OCI CPE created to represent the Azure VPN Gateway:
 
 ```text
 Name:      cpe-azure-vpn-gateway
-IP:        48.206.217.77
+IP:        <redacted>
 Vendor:    Other
 ```
 
@@ -680,7 +680,7 @@ OCI Tunnel 1 configuration:
 Name:                     Azure-Tunnel-1
 Routing type:             BGP dynamic routing
 IKE version:              IKEv2
-Oracle VPN public IP:     131.186.7.140
+Oracle VPN public IP:     <redacted>
 Oracle BGP ASN:           31898
 Customer/Azure BGP ASN:   65515
 CPE/Azure inside IP:      169.254.21.2/30
@@ -1215,6 +1215,8 @@ The objective is not merely to deploy working replication. The lab must produce 
 * How networking, security, credentials, and database privileges affect CDC
 * How the architecture can extend across OCI, Azure, AWS, and Google Cloud
 
-The intended interview-level project summary is:
+What I actually completed (as of October 2026):
 
-> Built a heterogeneous multi-cloud database migration and replication lab using OCI Oracle, Azure SQL Server, Oracle GoldenGate, AWS PostgreSQL, and Google Cloud PostgreSQL. Implemented a dedicated GoldenGate hub with remote capture and remote apply, validated one-way CDC, extended the topology to bidirectional replication, and tested failure recovery, conflict handling, reconciliation, cutover, and rollback.
+> I built a cross-cloud lab that replicates Oracle AI Database 26ai on OCI into SQL Server 2022 on Azure through a dedicated GoldenGate 26ai hub. I set up the OCI-Azure IPsec/IKEv2 VPN with BGP, tracked down a pre-shared-key mismatch, worked through GoldenGate install and lifecycle failures, and diagnosed an FRA exhaustion that stalled redo archiving. I verified one-way INSERT, UPDATE and DELETE apply; sanitized target-side logs will be published after the rerun. AWS and Google Cloud PostgreSQL are planned, not built.
+
+Bidirectional replication, conflict handling, reconciliation, cutover and rollback testing in the list above are planned, not done.

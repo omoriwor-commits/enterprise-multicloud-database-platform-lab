@@ -57,7 +57,7 @@ The deployment uses **remote Integrated Extract for Oracle source capture** from
 - [September 7, 2026 Oracle-to-SQL Server CDC checkpoint](docs/checkpoints/2026-09-07-oracle-to-sqlserver-cdc-progress.md)
 - [Azure foundation and multi-cloud implementation plan](docs/azure/phase-1-azure-foundation.md)
 
-## Current Environment
+## Environment as Built (now shut down)
 
 ### OCI Oracle Source
 
@@ -123,7 +123,7 @@ Checkpoint table:     ogg_repl.ggs_checkpoint
 
 `ogg_repl` was granted `db_owner` for the lab build. Before any production use I would scope it down to only the permissions Replicat needs.
 
-The SQL Server VM remains privately managed. Administration uses a controlled SSH/RDP tunnel through the GoldenGate hub rather than assigning a public IP to SQL Server.
+The SQL Server VM was deployed with a public IP, but I did not open SQL Server (TCP 1433) or RDP to the internet through it. Administration went through an SSH/RDP tunnel via the GoldenGate hub.
 
 ### Azure GoldenGate Hub
 
@@ -208,13 +208,20 @@ Detailed chronology and evidence are maintained in the project history and dated
 
 ## Security Controls
 
-- Database listeners are not publicly exposed; no 0.0.0.0/0 rules for 1433 or 1521.
-- Management access is restricted to known source addresses.
-- SQL Server RDP stays private and is reached through an SSH tunnel.
-- Only the GoldenGate management port needed for browser administration is open.
-- Passwords, PSKs, private keys and credential-store secrets are kept out of GitHub.
-- The GoldenGate management plane does not yet use TLS/HTTPS; I would add it before any production-like use.
+While the environment was running:
+
+- Database listeners were not publicly exposed; there were no 0.0.0.0/0 rules for 1433 or 1521.
+- Management access was restricted to known source addresses.
+- SQL Server RDP stayed private and was reached through an SSH tunnel.
+- Only the GoldenGate management port needed for browser administration was open.
+- Passwords, PSKs, private keys and credential-store secrets were kept out of GitHub.
+- The GoldenGate management plane did not use TLS/HTTPS; I would add it before any production-like use.
 
 ## Rerun
 
 The step-by-step rebuild and evidence capture are in the [rerun playbook](docs/oci-to-azure-goldengate-rerun-playbook.md).
+
+## Related Repositories
+
+- [Oracle Database Platform Engineering](https://github.com/omoriwor-commits/oracle-db-platform-automation): portfolio hub, knowledge base and automation roadmap.
+- [Enterprise Data Platform Labs](https://github.com/omoriwor-commits/enterprise-data-platform-labs): migrations 1 and 2 (19c to 26ai, and on-premises to OCI).

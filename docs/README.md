@@ -10,10 +10,15 @@ This directory contains the design records, implementation notes, checkpoints, t
 
 - [Phase 1 — Azure Foundation](azure/phase-1-azure-foundation.md)
 
+## Rerun
+
+- [OCI Oracle to Azure SQL Server GoldenGate Rerun Playbook](oci-to-azure-goldengate-rerun-playbook.md)
+
 ## Checkpoints
 
 - [2026-09-07 — Oracle to SQL Server CDC Progress](checkpoints/2026-09-07-oracle-to-sqlserver-cdc-progress.md)
 - [2026-09-09 — Oracle to SQL Server Replicat Preparation](checkpoints/2026-09-09-oracle-to-sqlserver-replicat-prep.md)
+- [September 2026 Build Snapshot](checkpoints/2026-09-build-snapshot.md)
 
 ## GoldenGate Troubleshooting
 
@@ -27,6 +32,7 @@ This directory contains the design records, implementation notes, checkpoints, t
 
 - [Recovered Command Syntax Reference](runbooks/recovered-command-syntax-reference.md)
 - [Oracle 19c Two-Node RAC Build and Troubleshooting](runbooks/oracle-rac/oracle19c-2node-rac-build-and-troubleshooting.md)
+- [Oracle 26ai Two-Node RAC Build Runbook (draft)](runbooks/oracle-rac/oracle26ai-2node-rac-build-runbook.md)
 
 ## Documentation Standard
 

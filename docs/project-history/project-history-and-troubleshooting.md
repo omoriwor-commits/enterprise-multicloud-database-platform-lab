@@ -15,7 +15,7 @@ I subsequently completed the OCI Oracle 26ai → Azure GoldenGate 26ai → Azure
 
 ## 1. Project Goal and Target Architecture
 
-The lab is a production-style heterogeneous database engineering environment spanning multiple cloud providers. It is designed to practice database migration, CDC, cloud networking, GoldenGate administration, security, failure analysis, backup/recovery, validation, cutover, rollback, and operational runbooks.
+The lab is a self-built heterogeneous database environment spanning OCI and Azure. It is designed to practice database migration, CDC, cloud networking, GoldenGate administration, security, failure analysis, backup/recovery, validation, cutover, rollback, and operational runbooks.
 
 ```text
 OCI
