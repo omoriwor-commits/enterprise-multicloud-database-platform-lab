@@ -6,6 +6,7 @@ This folder contains repeatable build, recovery, validation, and troubleshooting
 
 - [Recovered Command Syntax Reference](recovered-command-syntax-reference.md)
 - [Oracle 19c Two-Node RAC Build and Troubleshooting](oracle-rac/oracle19c-2node-rac-build-and-troubleshooting.md)
+- [Oracle 26ai Two-Node RAC Build (draft)](oracle-rac/oracle26ai-2node-rac-build-runbook.md)
 
 ## Runbook Standard
 

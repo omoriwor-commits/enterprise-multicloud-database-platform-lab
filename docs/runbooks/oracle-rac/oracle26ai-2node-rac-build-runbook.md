@@ -143,7 +143,7 @@ Check every command succeeded before proceeding. Attach the **same three disk fi
 
 ## Phase 1: OS prep on both nodes
 
-Both nodes need Oracle Linux 9, static public/private cluster interfaces plus NAT for outbound access, matching time, and consistent name resolution before any Oracle software goes on. OS commands in Phases 1–4 require root privileges; use `sudo -i` from the administrator account rather than enabling password-based root SSH.
+Both nodes need Oracle Linux 9, static public/private cluster interfaces plus NAT for outbound access, matching time, and consistent name resolution before any Oracle software goes on. OS commands in Phases 1–4 require root privileges; use `sudo -i` from the administrator account rather than enabling password-based root SSH. During the OS install, don't create a user named oracle or grid; Phase 2 creates them.
 
 1. Confirm the OS release and kernel on both nodes.
 
@@ -270,6 +270,22 @@ Before each groupadd/useradd, verify the name and numeric ID are unused or alrea
 id oracle
 getent group oinstall dba oper backupdba dgdba kmdba racdba
 ```
+
+> **Found on the first build (racnode1, 2026-10-17):** `id oracle` showed `uid=1000(oracle) gid=1000(oracle)`, with only `asmdba` as a secondary group. The oracle account had been created in the OS installer, so the preinstall RPM left it alone. The installer and the Phase 3 ownership commands need `oinstall` as the primary group and the full set of OS groups, so fix the account before going further. Run this as root on each node where `id oracle` doesn't match, after checking that `ps -u oracle` returns nothing:
+>
+> ```bash
+> getent group oinstall dba oper backupdba dgdba kmdba racdba asmdba
+> getent passwd 54321          # must return nothing
+> usermod -u 54321 -g oinstall -G dba,oper,backupdba,dgdba,kmdba,racdba,asmdba oracle
+> find / -xdev -user 1000 -exec chown -h oracle {} +
+> find / -xdev -group 1000 -exec chgrp -h oinstall {} +
+> groupdel oracle
+> id oracle
+> ```
+>
+> Expected: `uid=54321(oracle) gid=54321(oinstall)`, with dba, oper, backupdba, dgdba, kmdba, racdba and asmdba as secondary groups. Run `id oracle` and `id grid` on both nodes and confirm the UIDs and GIDs match. The 19c runbook used UID 54331; 54321 is what the preinstall RPM assigns on a clean OS. Either works if both nodes match.
+>
+> To avoid this on the next build, don't create an `oracle` user in the OS installer.
 
 3. Create only the ASM groups (skip any that already exist).
 
