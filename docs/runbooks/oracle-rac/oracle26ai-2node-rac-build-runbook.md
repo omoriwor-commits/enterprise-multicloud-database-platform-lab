@@ -225,7 +225,7 @@ sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
 getenforce
 ```
 
-Record the SELinux mode you end up using. My October node 2 incident ended with SELinux disabled and an unconfirmed root cause, so note it rather than changing it silently later.
+Record the SELinux mode you end up using. My October 2026 19c node 2 incident ended with SELinux disabled and an unconfirmed root cause, so note it rather than changing it silently later.
 
 7. **Verify** install the 26ai preinstall RPM before creating Oracle users manually. Review the proposed package transaction and any kernel changes against the selected Grid/Database RU before updating. Do not blindly boot a new kernel family with older installation media.
 
@@ -254,7 +254,7 @@ swapon --show
 
 ## Phase 2: Users, groups, limits
 
-The 26ai preinstall RPM does most of the work the 19c runbook did by hand. Run it first, then add only what it does not create. UIDs and GIDs must match on both nodes.
+The 26ai preinstall RPM does most of the work the 19c runbook did by hand. Phase 1 installed it; this phase checks what it created and adds only what it does not. UIDs and GIDs must match on both nodes.
 
 1. Confirm Phase 1 installed the preinstall RPM on both nodes.
 
@@ -546,7 +546,7 @@ cd /u01/app/23.26/grid
 
 There is no GIMR option to set; GIMR is desupported in 26ai.
 
-7. If you did not choose automatic root scripts, run them as root when prompted. Node 1 must finish before node 2 starts.
+7. Run the root scripts as root (from the administrator session using `sudo -i`) when prompted. Node 1 must finish before node 2 starts.
 
 ```bash
 /u01/app/oraInventory/orainstRoot.sh
@@ -646,11 +646,11 @@ cd /u01/app/oracle/product/23.26/dbhome_1
 | OSDBA / OSOPER                  | dba / oper                                             |
 | OSBACKUPDBA / OSDGDBA / OSKMDBA | backupdba / dgdba / kmdba                              |
 | OSRACDBA                        | racdba (19c runbook used dba)                          |
-| Root scripts                    | Automatically run, or run manually when prompted       |
+| Root scripts                    | Run manually as root from the administrator sudo session when prompted       |
 
 Do not choose single-instance installation. A RAC database cannot be created from a single-instance home.
 
-4. If running root scripts manually, run on node 1, then node 2.
+4. Run the root script as root (via `sudo -i`) on node 1, then node 2.
 
 ```bash
 /u01/app/oracle/product/23.26/dbhome_1/root.sh
@@ -802,5 +802,5 @@ asmcmd ls +FRA
 - [26ai ASM device persistence](https://docs.oracle.com/en/database/oracle/oracle-database/26/ladbi/configuring-device-persistence-manually-for-oracle-asm.html)
 - [26ai ASM creation and default compatibility values](https://docs.oracle.com/en/database/oracle/oracle-database/26/ostmg/create-diskgroups.html)
 
-**Evidence status:** The VM creation and installer screenshots establish preparation progress only. Final installed OS layout, running kernel, node 2, shared-disk mapping, Grid installation and database validation remain to be recorded. This revision is not evidence of a completed 26ai cluster.
+**Evidence status:** Preparation is in progress; no build evidence is published yet. Final installed OS layout, running kernel, node 2, shared-disk mapping, Grid installation and database validation remain to be recorded. This revision is not evidence of a completed 26ai cluster.
 
