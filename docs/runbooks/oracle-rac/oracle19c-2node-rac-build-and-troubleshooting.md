@@ -367,12 +367,14 @@ File:
 Contents from the tested lab:
 
 ```text
-ENV{ID_SERIAL}=="VBOX_HARDDISK_VBad2fb43e-20e7527f", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk1"
-ENV{ID_SERIAL}=="VBOX_HARDDISK_VBacc322ce-7f043f0b", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk2"
-ENV{ID_SERIAL}=="VBOX_HARDDISK_VBbae5fb9c-482333b5", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk3"
+ENV{ID_SERIAL}=="VBOX_HARDDISK_<serial_of_ocr_disk>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk1"
+ENV{ID_SERIAL}=="VBOX_HARDDISK_<serial_of_data_disk>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk2"
+ENV{ID_SERIAL}=="VBOX_HARDDISK_<serial_of_fra_disk>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk3"
 ```
 
 These serials are specific to this VirtualBox lab. Recheck identifiers before reusing on another environment.
+
+> **Disk-role check pending (2026-10-18):** In my 26ai rebuild, a reused serial previously listed here as `asm-disk1` / OCR belonged to the 40 GB `data01.vdi` disk. Actual serials are intentionally withheld. Check the original 19c OCR/DATA labels against retained configuration or logs before treating that mapping as tested. The placeholders above reflect the intended roles, not a verified correction of the historical mapping.
 
 ## 16. Reload UDEV Rules
 
@@ -537,8 +539,9 @@ cd $GRID_HOME
 ## 25. Launch Grid Installer on Node1 as `grid`
 
 ```bash
-export DISPLAY=192.168.56.1:0.0
-xhost +192.168.56.101   # on the X server: allow only racnode1, not every host
+# Log in directly as grid using authenticated SSH X11 forwarding.
+# Do not use su from root or hardcode DISPLAY.
+echo "$DISPLAY"
 
 cd /u01/app/19.0.0/grid
 ./gridSetup.sh
@@ -977,4 +980,4 @@ srvctl remove database -d RAC -force
 
 ## Provenance
 
-This is my tested and reused RAC build runbook, converted to Markdown. Database passwords have been replaced with placeholders; all other values, commands, installer selections and recovery steps are unchanged.
+This is my tested and reused RAC build runbook, converted to Markdown. Database passwords and disk serials have been replaced with placeholders. Step 25 now uses SSH X11 forwarding. Other historical commands and selections are retained; review the Step 15 disk-role caveat before reusing them.

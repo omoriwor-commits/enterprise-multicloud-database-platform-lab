@@ -1,12 +1,12 @@
 # Oracle AI Database 26ai Two-Node RAC Build Runbook
 
-**Last updated:** 2026-10-17
+**Last updated:** 2026-10-18
 
 ## Overview
 
-This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the phases of my tested 19c runbook, updated for 26ai, with Phase 0 added for the VirtualBox setup. Steps marked **Verify** are not yet tested in my lab, so confirm them on the first build.
+This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the phases of my tested 19c runbook, updated for 26ai, with Phase 0 added for the VirtualBox setup. I completed Phases 0–7 on October 18, 2026. Remaining **Verify** items identify checks still needing confirmation or retained checks for the next build. Phases 8–12 remain unrun; Grid installation is not a completed RAC database.
 
-**Status:** Draft, adapted from the 19c runbook. Not yet built end to end on 26ai.
+**Status:** Draft. Phases 0–7 built and tested on 2026-10-18; Phases 8–12 not yet run.
 
 **Baseline:** [Tested Oracle 19c two-node RAC build and troubleshooting runbook](oracle19c-2node-rac-build-and-troubleshooting.md).
 
@@ -17,14 +17,14 @@ This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in 
 | Item                                | Node 1         | Node 2         |
 | ----------------------------------- | -------------- | -------------- |
 | VirtualBox VM name                  | rac26node1 | rac26node2 |
-| Hostname (FQDN)                     | rac26node1.lab.test | rac26node2.lab.test |
+| OS hostname                         | racnode1 | racnode2 |
 | Public IP (host-only, 192.168.56.x) | 192.168.56.101 | 192.168.56.102 |
 | VIP                                 | 192.168.56.111 | 192.168.56.112 |
 | Private interconnect (192.168.57.x) | 192.168.57.101 | 192.168.57.102 |
 | ASM instance                        | +ASM1          | +ASM2          |
 | DB instance                         | RAC1           | RAC2           |
 
-SCAN for this hosts-file lab: `rac-scan.lab.test` (`rac-scan`) on `192.168.56.120`, one SCAN VIP/listener. Cluster name: `raccluster`. A three-address SCAN requires a verified DNS/GNS configuration; repeated hosts-file entries are not a substitute for round-robin DNS.
+SCAN: `rac-scan`, with hosts-file entries `192.168.56.120` through `192.168.56.122`. I observed three SCAN VIPs/listeners in this build. This is a lab observation, not a guarantee that repeated hosts-file entries provide correct resolution for every node or client. Oracle recommends DNS/GNS for SCAN; see the Phase 7 checks. Intended cluster name: `raccluster`; **Verify** the installed name with `cemutlo -n`.
 
 **Verify** all example subnets are unused by the Windows host, VPNs and other VMs before assigning them. VIP and SCAN addresses must be reserved and unused; do not assign them manually to Linux interfaces.
 
@@ -36,7 +36,16 @@ SCAN for this hosts-file lab: `rac-scan.lab.test` (`rac-scan`) on `192.168.56.12
 | vCPU | 2 | Four physical host cores are shared by both guests and Windows |
 | OS/software disk | 100 GiB, dynamically allocated VDI | Separate disk for each node |
 
-The current build uses **automatic partitioning**. The final filesystem layout has not yet been captured; do not claim a separate 60 GiB `/u01` filesystem exists. After installation, record:
+I used automatic partitioning on each 100 GB OS disk. The observed layout was:
+
+| Volume / mount | Approximate size | Purpose |
+|---|---:|---|
+| `ol-root`, `/` | 64 GB | OS and `/u01`; no separate `/u01` mount |
+| `ol-home`, `/home` | 31 GB | User homes |
+| `ol-swap` | 4.9 GB | Initial swap; supplemented in Phase 1 |
+| `/boot` | 1 GB | Boot files |
+
+Record free space before staging, patching or extracting software:
 
 ```bash
 df -hT
@@ -45,17 +54,15 @@ swapon --show
 free -h
 ```
 
-**Verify** sufficient free space in the filesystem that will contain `/u01`, installation staging, patching and logs before extracting software. Automatic partitioning may allocate substantial space to `/home`; resolve insufficient space before Grid installation. For 10 GiB RAM, plan 10 GiB total swap and validate the release-specific Grid checklist. If automatic swap is smaller, add verified persistent swap after installation; swap does not replace physical RAM.
+Shared disks are fixed size, Shareable, and attached at the same SATA ports on both VMs. These are the disks I reused from the deleted 19c cluster:
 
-For a future custom installation on a 100 GiB disk, a simple alternative is `/boot` 1 GiB, swap 10 GiB, and `/` using the remaining space (less partition/LVM overhead), with `/u01` under `/`. Do not add this custom layout on top of the current automatic installation.
+| SATA port | VDI file | Size | Observed device | Intended diskgroup / alias |
+|---|---|---:|---|---|
+| 1 | `data01.vdi` | 40 GB | `/dev/sdb` | DATA / `asm-disk2` |
+| 2 | `fra01.vdi` | 30 GB | `/dev/sdc` | FRA / `asm-disk3` |
+| 3 | `ocr01.vdi` | 20 GB | `/dev/sdd` | OCR / `asm-disk1` |
 
-Shared disks (VirtualBox: fixed size, type Shareable, attached to both VMs):
-
-| Device   | Size  | Diskgroup                  |
-| -------- | ----- | -------------------------- |
-| /dev/sdb | 20 GB | OCR (OCR and voting files) |
-| /dev/sdc | 40 GB | DATA                       |
-| /dev/sdd | 20 GB | FRA                        |
+Device letters depend on controller port order and can shift. Map disks by serial and size, never by `sdX` alone. DATA and FRA are candidate disks; their diskgroups have not yet been created.
 
 ### Software paths
 
@@ -87,7 +94,7 @@ Sources: [Oracle 26ai Grid/RAC OS checklist](https://docs.oracle.com/en/database
 
 ### Build sequence
 
-Build node 1 through Phases 1, 2, 3 and 5 before creating node 2 as a powered-off full clone. Then complete node 2 identity/network changes, attach fresh shared disks and run Phase 4 and Phases 6 onward. Checks requiring node 2 wait until node 2 exists. If building node 2 independently, complete all preparation phases on both nodes.
+Build node 1 through Phases 1, 2, 3 and 5 before creating node 2 as a powered-off full clone. Then complete node 2 identity/network changes, attach the verified reused shared disks and run Phase 4 and Phases 6 onward. Checks requiring node 2 wait until node 2 exists. If building node 2 independently, complete all preparation phases on both nodes.
 
 ## Phase 0: VirtualBox setup
 
@@ -104,40 +111,53 @@ Build node 1 through Phases 1, 2, 3 and 5 before creating node 2 as a powered-of
 **Verify** the host-only network has host address `192.168.56.1/24` and DHCP disabled. The internal network does not require a Windows host adapter or host address. Use the same internal-network name on both VMs. Leave promiscuous mode at Deny.
 
 3. Create `rac26node1` with the sizing above, a new OS disk, the OL9 x86-64 Full ISO, and Skip Unattended Installation selected. Install Server with GUI, create an administrator account such as `labadmin`, and keep password-based root SSH disabled. Configure the selected automatic disk layout.
-4. **Verify** record the completed node 1 inventory before cloning. Shut down Linux cleanly. Make a **full clone** named `rac26node2`, generating new MAC addresses for every adapter. Do not clone after Grid installation or after attaching ASM disks.
-5. Boot the clone isolated from the public/private networks initially to avoid duplicate IP addresses. From its console, as root, regenerate machine identity:
+4. Record the completed node 1 inventory, then shut down Linux cleanly. With node 1 fully powered off and shared disks not yet attached, make a **Full Clone** named `rac26node2`. Choose "Generate new MAC addresses for all network adapters" and leave **Keep Disk Names** and **Keep Hardware UUIDs** unticked. Do not clone after Grid installation.
+5. Keep node 1 off until node 2's IPs have changed. On node 2 only, from its console as root, reset the copied identities before anything else:
 
 ```bash
-rm -f /etc/machine-id /var/lib/dbus/machine-id
-systemd-machine-id-setup
+rm -f /var/lib/dbus/machine-id
+rm -f /etc/machine-id && systemd-machine-id-setup
 ln -s /etc/machine-id /var/lib/dbus/machine-id
+rm -f /etc/ssh/ssh_host_* && ssh-keygen -A && systemctl restart sshd
+hostnamectl set-hostname racnode2
 ```
 
-**Verify** machine IDs differ between nodes. On node 2 regenerate SSH host keys before accepting remote connections:
+Removing the D-Bus copy prevents `systemd-machine-id-setup` from reusing that copied ID; restore it as a symlink afterward. Stop if the two nodes still show the same ID. A full clone copies the machine-id, which can confuse DHCP, logging and management tools; Clusterware does not use it for cluster identity. It also copies SSH host keys, making both nodes present the same SSH identity; I caught this because both nodes showed the same ED25519 fingerprint.
+
+Set node 2's public/private addresses to `.102` and Phase 5 profiles to `+ASM2` / `RAC2`. Check interface/profile mapping after MAC regeneration. On each node, inspect these locally and confirm the values differ between nodes; do not publish the IDs or fingerprints:
 
 ```bash
-rm -f /etc/ssh/ssh_host_*
-ssh-keygen -A
-systemctl restart sshd
+cat /etc/machine-id
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 ```
 
-Set node 2 hostname, static addresses and Phase 5 SID/profile values before reconnecting its cluster adapters. Verify interface/profile mapping against the new MAC addresses. Reset any copied grid/oracle user SSH keys before Phase 6 so each node/user has a distinct key.
+Reset any copied grid/oracle user SSH keys before Phase 6 so each user/node has its own key.
 
-6. **Verify** with both VMs powered off, create three **new, fixed-size, Shareable** VDI disks. The following PowerShell example creates files under a new lab-only directory; stop if those filenames already exist:
+6. With both VMs off, attach the same `data01.vdi`, `fra01.vdi` and `ocr01.vdi` files, fixed size and Shareable, at ports 1, 2 and 3 respectively on both nodes. The OS disk stays at port 0. Confirm full paths and identities in VirtualBox's Media manager, without publishing live identifiers.
+
+These disks came from my deleted 19c cluster and carried old ASM headers. The Phase 4 wipe was mandatory **once before provisioning this fresh build**. Before any wipe, confirm that each disk is attached only to `rac26node1` and `rac26node2`. Do not repeat the wipe now that Grid/OCR is installed.
+
+### Host prerequisites — Verify: fix in progress
+
+For this build I want VirtualBox using hardware VT-x rather than Hyper-V "snail mode". Check each VM's log after starting it, from PowerShell:
 
 ```powershell
-$VBoxManage = "C:\Program Files\Oracle\VirtualBox\VBoxManage.exe"
-$DiskDir = "C:\RAC26ai\shared"
-New-Item -ItemType Directory -Force -Path $DiskDir
-& $VBoxManage createmedium disk --filename "$DiskDir\rac26-ocr.vdi" --size 20480 --variant Fixed
-& $VBoxManage createmedium disk --filename "$DiskDir\rac26-data.vdi" --size 40960 --variant Fixed
-& $VBoxManage createmedium disk --filename "$DiskDir\rac26-fra.vdi" --size 20480 --variant Fixed
-& $VBoxManage modifymedium disk "$DiskDir\rac26-ocr.vdi" --type shareable
-& $VBoxManage modifymedium disk "$DiskDir\rac26-data.vdi" --type shareable
-& $VBoxManage modifymedium disk "$DiskDir\rac26-fra.vdi" --type shareable
+Select-String -Path "<VM folder>\Logs\VBox.log" -Pattern "Snail|VT-x is not available|HMR3Init"
 ```
 
-Check every command succeeded before proceeding. Attach the **same three disk files** to both VMs at matching SATA ports (for example OCR 1, DATA 2, FRA 3; OS disk at 0). Compare full paths and VirtualBox UUIDs on both VMs. Matching filenames or capacities alone do not prove shared storage. Do not attach disks belonging to other database/GoldenGate VMs.
+My logs showed `VT-x is not available` and `Snail execution mode is active`. Windows Virtual Machine Platform for WSL2/Docker Desktop can start the Windows hypervisor even without a running Hyper-V guest. VirtualBox documents performance degradation with Hyper-V; the exact Windows feature responsible on my host still needs confirmation.
+
+Quit Docker Desktop, shut down the lab VMs, then run from an elevated Windows terminal and reboot Windows:
+
+```powershell
+bcdedit /set hypervisorlaunchtype off
+```
+
+To undo that boot setting, use `bcdedit /set hypervisorlaunchtype auto` and reboot. Check Virtualization-Based Security, Core Isolation/Memory Integrity and the Windows virtualization features too; changing them affects WSL2/Docker availability and may affect host security. See [VirtualBox Hyper-V troubleshooting](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/Troubleshooting.html).
+
+**Verify: fix in progress.** Snail mode was still present after my first `bcdedit` attempt. I have not confirmed the final fix; require a fresh log showing hardware virtualization before treating it as resolved.
+
+Set Windows to never sleep while the lab runs; my host suspended overnight. Copy each VM's `VBox.log` before its next start if it is needed as evidence, because VirtualBox rotates logs at VM start. Redact Windows paths as `C:\Users\<user>\...` and remove IDs, MACs and VM UUIDs before publishing.
 
 ---
 
@@ -156,9 +176,9 @@ uname -r
 
 ```bash
 # node1
-hostnamectl set-hostname rac26node1.lab.test
+hostnamectl set-hostname racnode1
 # node2
-hostnamectl set-hostname rac26node2.lab.test
+hostnamectl set-hostname racnode2
 ```
 
 3. **Verify** connection-to-interface mapping using `nmcli device status`, `nmcli connection show` and MAC addresses. Configure the actual public/private connection names below on node 1; use .102 on node 2. Execute from the console because changing connections can disconnect SSH. Leave the NAT profile on DHCP and make it the only default route.
@@ -181,29 +201,31 @@ Add these entries to `/etc/hosts` on both nodes; preserve required localhost ent
 ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
 
 # Public
-192.168.56.101  rac26node1.lab.test rac26node1
-192.168.56.102  rac26node2.lab.test rac26node2
+192.168.56.101  racnode1
+192.168.56.102  racnode2
 
 # VIP
-192.168.56.111  rac26node1-vip.lab.test rac26node1-vip
-192.168.56.112  rac26node2-vip.lab.test rac26node2-vip
+192.168.56.111  racnode1-vip
+192.168.56.112  racnode2-vip
 
 # SCAN
-192.168.56.120  rac-scan.lab.test rac-scan
+192.168.56.120  rac-scan
+192.168.56.121  rac-scan
+192.168.56.122  rac-scan
 
 # Private interconnect
-192.168.57.101  rac26node1-priv
-192.168.57.102  rac26node2-priv
+192.168.57.101  racnode1-priv
+192.168.57.102  racnode2-priv
 ```
 
 4. Test name resolution and reachability from both nodes. VIPs and SCAN will not answer ping until Grid is running; that is expected.
 
 ```bash
-for h in rac26node1 rac26node2 rac26node1-vip rac26node2-vip rac-scan rac26node1-priv rac26node2-priv; do getent hosts $h; done
-ping -c 3 rac26node1
-ping -c 3 rac26node2
-ping -c 3 rac26node1-priv
-ping -c 3 rac26node2-priv
+for h in racnode1 racnode2 racnode1-vip racnode2-vip rac-scan racnode1-priv racnode2-priv; do getent hosts $h; done
+ping -c 3 racnode1
+ping -c 3 racnode2
+ping -c 3 racnode1-priv
+ping -c 3 racnode2-priv
 ```
 
 5. Enable time sync and check it.
@@ -227,12 +249,27 @@ getenforce
 
 Record the SELinux mode you end up using. My October node 2 incident ended with SELinux disabled and an unconfirmed root cause, so note it rather than changing it silently later.
 
+Before Grid prerequisites, disable avahi on both nodes. I missed this initially and cluvfy reported PRVG-1359 / PRVG-1360:
+
+```bash
+systemctl disable --now avahi-daemon.socket avahi-daemon.service
+```
+
 7. **Verify** install the 26ai preinstall RPM before creating Oracle users manually. Review the proposed package transaction and any kernel changes against the selected Grid/Database RU before updating. Do not blindly boot a new kernel family with older installation media.
 
 ```bash
 dnf install oracle-ai-database-preinstall-26ai
 dnf check-update
 grubby --default-kernel
+```
+
+My 1 GB `/boot` was 72% used. Before a full `dnf update`, set the existing `installonly_limit` entry to `2` under `[main]` in `/etc/dnf/dnf.conf` (add it only if absent). Inspect installed UEK packages and `/boot` usage, then select obsolete UEK versions for removal through `dnf`, reviewing the transaction first. Never remove the running kernel or the selected working fallback; if both must be retained, keep them and resolve space before updating. Do not use wildcard removal. Kernel/RU compatibility still takes priority over installing the newest kernel.
+
+```bash
+df -h /boot
+uname -r
+rpm -q kernel-uek
+grubby --info=ALL
 ```
 
 After choosing and applying a compatible package/kernel update set, reboot and record:
@@ -249,6 +286,27 @@ swapon --show
 ```
 
 **Verify** both nodes have the same intended kernel/packages. Oracle recommends `tsc` for virtual x86-64 environments, where available and suitable. Oracle's current checklist and detailed guide differ in THP wording; verify the selected release's guidance, record the chosen setting and validate it after reboot rather than silently switching between `never`, `madvise` and `always`.
+
+### Swap correction used in this build
+
+Automatic partitioning provided about 4.9 GB swap; cluvfy required about 9.27 GB for the 10 GB RAM allocation. I added a 5 GB swap file on each node. This is a **one-time provisioning step**, not a command block to rerun blindly. The guard refuses an existing file or fstab entry; investigate partial setup instead of overwriting it.
+
+```bash
+if [ -e /swapfile ] || grep -Eq '^[[:space:]]*/swapfile[[:space:]]' /etc/fstab; then
+    echo 'STOP: /swapfile already exists or is registered; inspect current swap.'
+else
+    dd if=/dev/zero of=/swapfile bs=1M count=5120 &&
+    chmod 600 /swapfile &&
+    mkswap /swapfile &&
+    swapon /swapfile &&
+    printf '%s\n' '/swapfile none swap defaults 0 0' >> /etc/fstab
+fi
+swapon --show
+free -g
+grep -c swapfile /etc/fstab
+```
+
+Expected: the original swap plus `/swapfile`, sufficient total swap for cluvfy, and exactly `1` matching fstab line. Check both nodes and confirm swap survives the next controlled reboot.
 
 ---
 
@@ -301,7 +359,7 @@ passwd oracle
 sysctl fs.aio-max-nr fs.file-max kernel.shmmax kernel.shmall kernel.shmmni kernel.sem net.ipv4.ip_local_port_range
 ```
 
-7. Check limits. The RPM sets limits for oracle only, so add a file for grid.
+7. Check limits. The RPM sets limits for oracle only, so add `/etc/security/limits.d/99-grid.conf` on both nodes. I missed this file on the first pass; cluvfy failed soft stack (PRVG-0449) and maximum locked memory (PRVE-0059).
 
 ```bash
 ls /etc/security/limits.d/
@@ -317,12 +375,14 @@ grid   hard   memlock  unlimited
 EOF
 ```
 
-8. Confirm limits as each user.
+8. As root, confirm limits in a fresh login on both nodes. `su - grid` run as root should not prompt for a password.
 
 ```bash
-su - grid -c 'ulimit -u; ulimit -n; ulimit -s'
+su - grid -c 'ulimit -s; ulimit -l; ulimit -n; ulimit -u'
 su - oracle -c 'ulimit -u; ulimit -n; ulimit -s'
 ```
+
+Expected grid values, in order: `10240`, `unlimited`, `1024`, `16384`. Check both nodes before rerunning cluvfy.
 
 ---
 
@@ -356,52 +416,64 @@ namei -om /u01/app/oracle/product/23.26/dbhome_1
 
 ## Phase 4: Shared disks and udev
 
-ASM needs the same three disks, with the same stable names and grid ownership, on both nodes. udev rules do this; ASM Filter Driver is desupported in 26ai, so do not use it.
+ASM needs the same three disks with persistent identities on both nodes. I used udev; ASM Filter Driver is desupported in 26ai.
 
-1. Confirm both nodes see the shared disks.
-
-```bash
-lsblk
-```
-
-Expected: sdb (20 GB), sdc (40 GB), sdd (20 GB).
-
-2. **Verify** each candidate against VirtualBox path/UUID, guest serial, size, existing signatures and mount state before provisioning. Linux `sdX` letters can change; the table is an example, not authorization to erase those device names.
+1. Check the disks on **both nodes** and compare serials and sizes with VirtualBox's Media manager. The observed letters follow my SATA port order; they are not permanent identities.
 
 ```bash
-lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS,MODEL,SERIAL
-wipefs -n /dev/sdb /dev/sdc /dev/sdd
+lsblk -o NAME,SIZE,SERIAL
+lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS
 findmnt
+udevadm info --query=property --name=/dev/sdd | grep ID_SERIAL=
 ```
 
-New empty VDI disks do not require a routine `dd` wipe. If a disk contains a signature, stop and establish its ownership and intended reuse before a separate reviewed cleanup. Never erase the OS disk, an unknown device, or an existing ASM member.
+`ID_SERIAL` has the form `VBOX_HARDDISK_<serial>`. OCR is 20 GB (`sdd` in this build), DATA 40 GB (`sdb`), and FRA 30 GB (`sdc`). If you reuse disks from an earlier build, the serials will match the old ones; new disks get new serials. Keep actual serials private.
 
-3. Get each disk's serial. The 19c serials will not match new VMs.
+2. **Fresh-build cleanup only, node 1 only, MobaXterm multi-execution OFF.** I reused disks from the deleted 19c cluster, so removing their old headers was mandatory before installing Grid. Confirm the VDI files belong only to `rac26node1` and `rac26node2`, that no retained database uses them, and that the devices/partitions are unmounted and unused on either node. Inspect signatures without changing them:
 
 ```bash
-for d in sdb sdc sdd; do echo -n "$d: "; udevadm info --query=property --name=/dev/$d | grep ID_SERIAL=; done
+wipefs -n /dev/disk/by-id/ata-VBOX_HARDDISK_<serial_of_ocr_disk>
+wipefs -n /dev/disk/by-id/ata-VBOX_HARDDISK_<serial_of_data_disk>
+wipefs -n /dev/disk/by-id/ata-VBOX_HARDDISK_<serial_of_fra_disk>
 ```
 
-4. Create one rules file, `/etc/udev/rules.d/99-oracle-asm.rules`, on both nodes with your serials.
+Only after confirming the mapping and intentional disposal of the old cluster, replace the placeholders with the exact local by-id paths and clear the first 100 MiB once, on node 1:
+
+```bash
+dd if=/dev/zero of=/dev/disk/by-id/ata-VBOX_HARDDISK_<serial_of_ocr_disk> bs=1M count=100 conv=fsync
+dd if=/dev/zero of=/dev/disk/by-id/ata-VBOX_HARDDISK_<serial_of_data_disk> bs=1M count=100 conv=fsync
+dd if=/dev/zero of=/dev/disk/by-id/ata-VBOX_HARDDISK_<serial_of_fra_disk> bs=1M count=100 conv=fsync
+```
+
+Never use transient `sdX` names for this wipe. Never repeat it after OCR/voting files or database data are installed; the completed Phase 7 build must skip this destructive provisioning step.
+
+3. Inspect ID_SERIAL on both nodes and match each whole disk to its role:
+
+```bash
+for d in sdb sdc sdd; do udevadm info --query=property --name=/dev/$d | grep ID_SERIAL=; done
+```
+
+4. Create one identical `/etc/udev/rules.d/99-oracle-asm.rules` on both nodes. Replace placeholders locally; keep the `VBOX_HARDDISK_` prefix exactly as returned by udev:
 
 ```text
-SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL}=="<serial_of_sdb>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk1"
-SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL}=="<serial_of_sdc>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk2"
-SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL}=="<serial_of_sdd>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk3"
+SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL}=="VBOX_HARDDISK_<serial_of_ocr_disk>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk1"
+SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL}=="VBOX_HARDDISK_<serial_of_data_disk>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk2"
+SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_SERIAL}=="VBOX_HARDDISK_<serial_of_fra_disk>", OWNER="grid", GROUP="asmdba", MODE="0660", SYMLINK+="asm-disk3"
 ```
 
-Use `grid:asmdba`, mode 0660, consistently on both nodes, following the 26ai device-persistence guidance. **Verify** identities and permissions on the actual block devices, not only the symlinks. Restrict rules to whole block disks with `SUBSYSTEM=="block", ENV{DEVTYPE}=="disk"`.
+The [26ai Grid Infrastructure Installation Guide](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/configuring-device-persistence-manually-for-oracle-asm.html) sets ASM devices to the installation owner and the OSDBA for Oracle ASM group (`asmdba`), mode 0660. My 19c build used the same group. [Older guides (12.2)](https://docs.oracle.com/en/database/oracle/oracle-database/12.2/cwlin/configuring-device-persistence-manually-for-oracle-asm.html) used the OSASM group, `asmadmin`.
 
-5. Reload and verify on both nodes.
+5. Reload and wait for udev on both nodes. My first `ls` ran too early and found nothing:
 
 ```bash
 udevadm control --reload-rules
 udevadm trigger
-ls -l /dev/asm-disk*
-ls -l /dev/sdb /dev/sdc /dev/sdd
+udevadm settle
+ls -lL /dev/asm-disk*
+md5sum /etc/udev/rules.d/99-oracle-asm.rules
 ```
 
-Expected: asm-disk1 to sdb, asm-disk2 to sdc, asm-disk3 to sdd, owner grid, group asmdba, mode 660. Keep only one ASM rules file.
+Expected block-device permissions: `brw-rw----`, owner `grid`, group `asmdba`. The rules-file checksums must match on both nodes. `asm-disk1` is OCR 20 GB, `asm-disk2` DATA 40 GB and `asm-disk3` FRA 30 GB; verify the actual backing devices rather than assuming their letters.
 
 ---
 
@@ -409,12 +481,12 @@ Expected: asm-disk1 to sdb, asm-disk2 to sdc, asm-disk3 to sdd, owner grid, grou
 
 Only the hostname and SID differ between nodes. `CV_ASSUME_DISTID` from the 19c runbook is removed because 26ai supports OL9 natively.
 
-**grid `~/.bash_profile`** (node1 shown; on node2 use rac26node2 and +ASM2):
+**grid `~/.bash_profile`** (node1 shown; on node2 use racnode2 and +ASM2):
 
 ```bash
 export TMP=/tmp
 export TMPDIR=$TMP
-export ORACLE_HOSTNAME=rac26node1
+export ORACLE_HOSTNAME=racnode1
 export ORACLE_BASE=/u01/app/grid
 export ORACLE_HOME=/u01/app/23.26/grid
 export GRID_HOME=$ORACLE_HOME
@@ -426,12 +498,12 @@ export NLS_DATE_FORMAT="DD-MON-YYYY HH24:MI:SS"
 export EDITOR=vi
 ```
 
-**oracle `~/.bash_profile`** (node1 shown; on node2 use rac26node2 and RAC2):
+**oracle `~/.bash_profile`** (node1 shown; on node2 use racnode2 and RAC2):
 
 ```bash
 export TMP=/tmp
 export TMPDIR=$TMP
-export ORACLE_HOSTNAME=rac26node1
+export ORACLE_HOSTNAME=racnode1
 export ORACLE_UNQNAME=RAC
 export ORACLE_BASE=/u01/app/oracle
 export ORACLE_HOME=/u01/app/oracle/product/23.26/dbhome_1
@@ -452,72 +524,121 @@ echo $ORACLE_HOME $ORACLE_SID
 
 ## Phase 6: Passwordless SSH
 
-Both grid and oracle need SSH without a password from every node to every node, including itself. The 19c runbook only set it up from node 1; do both nodes here.
+I configured passwordless SSH for grid and oracle on each node before Phase 7; `runcluvfy.sh` needs it already working. Repeat the flow for **each user on each node**, including self-connections.
 
-Option A is manual setup. Run as grid on node1, then as grid on node2, then repeat both as oracle:
+1. As root, run `su - grid` (or `su - oracle`) **on its own line**, then wait for that user's prompt. Do not paste a block beginning with `su -`: on my first attempt the remaining commands ran as root. Confirm `whoami` before proceeding.
+
+2. Paste only these non-interactive lines. Keep an existing intended key rather than overwriting it:
 
 ```bash
 test -f ~/.ssh/id_rsa || ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa
-ssh-copy-id rac26node1
-ssh-copy-id rac26node2
+ssh-keyscan -t ed25519 racnode1 racnode2 racnode1-priv racnode2-priv 2>/dev/null >> ~/.ssh/known_hosts
+ssh-keygen -lf ~/.ssh/known_hosts
 ```
 
-Option B is to let the installer do it. 26ai documents automatic SSH configuration during installation (the SSH connectivity step in `gridSetup.sh` and `runInstaller`).
+Before trusting the scanned keys, compare their fingerprints with each VM's local console output from Phase 0. Node 1's public/private entries must match each other; node 2's entries must match each other; the two nodes must differ. Consistency in `ssh-keyscan` alone does not authenticate the hosts. Remove only a confirmed stale entry if the clone's old key is still present; do not disable host-key checking.
 
-Before automation, verify destination host-key fingerprints through each VM console and accept them interactively for the exact public hostnames used below. Do not disable host-key checking. Verify from both nodes, as both users. Each command must return the date without a password or host-key prompt:
+3. Run each command separately and finish any prompt before the next command:
 
 ```bash
-for h in rac26node1 rac26node2; do ssh -o BatchMode=yes "$h" date; done
+ssh-copy-id racnode1
 ```
 
-Private aliases are used for interconnect tests, not this public-hostname SSH loop. If another tool uses FQDNs or private aliases, prepare and test their host-key entries separately. Stay with the selected OL9 baseline; do not infer unsupported platforms from a third-party anecdote.
+```bash
+ssh-copy-id racnode2
+```
+
+4. As the current grid/oracle user, verify all four aliases without password or host-key prompts:
+
+```bash
+for h in racnode1 racnode2 racnode1-priv racnode2-priv; do ssh -o BatchMode=yes "$h" hostname; done
+```
+
+After completing both users, run this final check as root on **both nodes**. It must succeed and print eight hostnames per node:
+
+```bash
+for user in grid oracle; do
+    su - "$user" -c 'for h in racnode1 racnode2 racnode1-priv racnode2-priv; do ssh -o BatchMode=yes "$h" hostname || exit 1; done' || break
+done
+```
 
 ---
 
 ## Phase 7: Grid Infrastructure install
 
-Grid goes in from node 1 and is copied to node 2 by the installer. Do not continue to ASM or the database until `crsctl` shows both nodes healthy.
+I installed Grid from node 1; the installer copied the home to node 2. This phase completed on October 18, 2026 after the node 2 root-script retry described below. DATA/FRA diskgroup creation and database installation remain unrun.
 
-1. Check media integrity on node 1. Compare against the checksum on Oracle's download page. **Verify** the signature and Oracle signer/certificate chain using the 26ai install guide section "Verifying Digital Signature and Integrity of Installation Archive Files". Substitute the actual media filenames throughout this runbook.
+1. Download media in a browser or with wget. Replace the placeholders locally; never commit a signed link or its AuthParam token. Capital `-O` selects the output file; lowercase `-o` selects wget's log:
 
 ```bash
-sha256sum LINUX.X64_2326100_grid_home.zip LINUX.X64_2326100_db_home.zip
-jarsigner -verify -verbose -certs LINUX.X64_2326100_grid_home.zip
-jarsigner -verify -verbose -certs LINUX.X64_2326100_db_home.zip
+mkdir -p /u01/stage
+wget -c -O /u01/stage/<file> "<signed link>"
 ```
 
-`jarsigner` requires a suitable Java JDK; verification can be performed on another trusted machine before transferring the same verified bytes. Require the expected signature result and review signer/trust warnings; merely printing a SHA256 hash or seeing `jar verified` does not establish that the signer is trusted Oracle media.
+I checked both hashes against Oracle's 26ai Linux download page during the build. These exact hashes and byte sizes were also confirmed against the [published download page](https://www.oracle.com/database/technologies/oracle26ai-linux-downloads.html) during this documentation update:
 
-2. As grid, unzip into the Grid home on node 1 only.
+| Archive | Bytes | SHA-256 |
+|---|---:|---|
+| `LINUX.X64_2326100_db_home.zip` | 2,406,058,543 | `2a5d2583df076209e624dff750829f9a562473c27c8f926d546cf9ad2a1a2efd` |
+| `LINUX.X64_2326100_grid_home.zip` | 1,089,544,451 | `2deb199610357780ebb4d1213d6aa52df1694c7b12bd21f9e02dc3f9c992cd61` |
+
+```bash
+sha256sum /u01/stage/LINUX.X64_2326100_grid_home.zip /u01/stage/LINUX.X64_2326100_db_home.zip
+```
+
+**Verify** the digital signature and Oracle signer/certificate chain using the matching installation guide. This separate signature check is retained; its execution is not established by the build record supplied for this revision:
+
+```bash
+jarsigner -verify -verbose -certs /u01/stage/LINUX.X64_2326100_grid_home.zip
+jarsigner -verify -verbose -certs /u01/stage/LINUX.X64_2326100_db_home.zip
+```
+
+`jarsigner` needs a suitable JDK and may be run on another trusted machine before transferring the same verified bytes. Review signer/trust warnings; `jar verified` alone does not establish trusted Oracle provenance. Keep the kernel/RU compatibility gate in Software paths even though the base-image hashes match.
+
+2. As grid, unzip into the Grid home on node 1 only:
 
 ```bash
 cd /u01/app/23.26/grid
-unzip -q /path/to/LINUX.X64_2326100_grid_home.zip
+unzip -q /u01/stage/LINUX.X64_2326100_grid_home.zip
 ```
 
-3. Install cvuqdisk locally as root on both nodes. Transfer the RPM through the administrator account, then use sudo on node 2. Root SSH is not required. **Verify** the exact RPM filename before running; the command below shows the local installation on each node.
+3. Install cvuqdisk on both nodes. As grid on node 1, transfer the RPM to node 2:
+
+```bash
+scp /u01/app/23.26/grid/cv/rpm/cvuqdisk-*.rpm racnode2:/tmp/
+```
+
+As root on node 1:
 
 ```bash
 export CVUQDISK_GRP=oinstall
 rpm -ivh /u01/app/23.26/grid/cv/rpm/cvuqdisk-*.rpm
 ```
 
-On node 2, after transferring the verified RPM to `/tmp`, run from the administrator session:
+On node 2, from the administrator sudo session:
 
 ```bash
 sudo env CVUQDISK_GRP=oinstall rpm -ivh /tmp/cvuqdisk-*.rpm
 ```
 
-4. As grid, run the cluster pre-check and fix every failure before installing.
+The RPM emitted a `NOKEY` signature warning in my build. That warning means the signing key is not available locally; it is not proof of authenticity or a reason to accept arbitrary RPMs. Use only the RPM from the verified Oracle archive. Check on both nodes:
+
+```bash
+ls -l /usr/sbin/cvuqdisk
+```
+
+Expected: `-rwsr-xr-x`, owner `root`, group `oinstall`.
+
+4. As grid, run the cluster pre-check with explicit cluster interfaces so the NAT adapter is excluded:
 
 ```bash
 cd /u01/app/23.26/grid
-./runcluvfy.sh stage -pre crsinst -n rac26node1,rac26node2 -verbose
+./runcluvfy.sh stage -pre crsinst -n racnode1,racnode2 -networks enp0s3:192.168.56.0:PUBLIC/enp0s8:192.168.57.0:cluster_interconnect -verbose
 ```
 
-**Verify** and classify each prerequisite finding. A DNS-related finding may reflect this explicitly chosen single-address hosts-file lab; document the exact finding and consequence before proceeding. Do not blanket-ignore DNS, interface, connectivity or swap failures.
+INFORMATION entries for skipped root-only checks and ORAchk were expected; they are not passed checks. Resolve avahi, swap, limits, storage, SSH and interface failures before installing. I accepted only the documented SCAN DNS/NIS limitation below.
 
-5. **Verify** log in directly as grid to node 1 with MobaXterm SSH X11 forwarding enabled. Verify the forwarded DISPLAY and an X client before launching. Do not hardcode DISPLAY or use an unauthenticated Windows X listener.
+5. Log in **directly as grid** through MobaXterm SSH with X11 forwarding. Do not launch the GUI through `su - grid` from a root session, hardcode DISPLAY or use unauthenticated X access:
 
 ```bash
 echo "$DISPLAY"
@@ -525,35 +646,47 @@ cd /u01/app/23.26/grid
 ./gridSetup.sh
 ```
 
-6. Installer selections.
+6. These are the screens and selections from my 26ai build:
 
-| Screen                | Value                                                              |
-| --------------------- | ------------------------------------------------------------------ |
-| Configuration option  | Configure Oracle Grid Infrastructure for a New Cluster             |
-| Cluster name          | raccluster                                                         |
-| SCAN name and port    | rac-scan.lab.test, 1521                                                     |
-| Nodes                 | rac26node1 / rac26node1-vip, rac26node2 / rac26node2-vip                   |
-| SSH connectivity      | Test (or Setup if you chose Option B in Phase 6)                   |
-| Network interfaces    | 192.168.56.0 = Public, 192.168.57.0 = ASM & Private; actual NAT subnet = Do Not Use                |
-| Storage               | Oracle ASM                                                         |
-| Diskgroup             | OCR, External redundancy, /dev/asm-disk1                           |
-| Disk discovery string | `/dev/asm-disk*`                                                   |
-| ASM passwords         | Secure local values, never committed to GitHub                     |
-| OS groups             | OSASM = asmadmin, OSDBA for ASM = asmdba, OSOPER for ASM = asmoper |
-| Oracle base           | /u01/app/grid                                                      |
-| Inventory             | /u01/app/oraInventory                                              |
-| Root scripts          | Run manually as root from the administrator sudo session when prompted     |
+| Screen | Selection / observation |
+|---|---|
+| Configuration Option | New Cluster |
+| Cluster Configuration | Manage Oracle RAC databases; not Extended |
+| Grid Plug and Play | Create Local SCAN; intended cluster `raccluster` (default was `racnode-cluster`); SCAN `rac-scan`, port 1521; no GNS |
+| Network Interface Usage | `enp0s3` Public; `enp0s8` ASM & Private; `enp0s9` IPv4 `10.0.4.0` and IPv6 Do Not Use |
+| Storage Option | Flex ASM; separate OCR backup disk group not selected |
+| ASM disk group | OCR, External redundancy, AU 4 MB; discovery `/dev/asm-disk*`; select `/dev/asm-disk1` only. All three disks showed Candidate |
+| ASM password | Local lab value; INS-30011 accepted. Never publish or reuse it; change it before connecting the lab externally |
+| Automatic Self Correction | Off; I want changes to be deliberate and documented |
+| Failure Isolation / Management | No IPMI; no EM registration |
+| OS groups | OSASM `asmadmin`; OSDBA for ASM `asmdba`; OSOPER for ASM `asmoper` |
+| Installation Location | Base `/u01/app/grid`; INS-40109 appeared because cluvfy had written `$ORACLE_BASE/diag`; I checked the directory on both nodes before proceeding |
+| Root scripts | Automatic option with root credentials, entered locally |
+| Prerequisite checks | Only DNS/NIS name service failed because SCAN was in `/etc/hosts`; I selected Ignore All for that recorded finding only |
 
-There is no GIMR option to set; GIMR is desupported in 26ai.
+Earlier builds used `oinstall` for all Grid roles; this build uses role separation. There is no GIMR option in 26ai. **Verify** the actual cluster name with `cemutlo -n`; I skipped the Summary screen, so `raccluster` is still the intended value until checked. Do not use Ignore All if any additional prerequisite fails.
 
-7. If you did not choose automatic root scripts, run them as root when prompted. Node 1 must finish before node 2 starts.
+7. I used automatic root-script execution. For manual execution, use root (`sudo -i` from the administrator session) and run these when prompted on node 1 **to completion**, then node 2; never in parallel:
 
 ```bash
 /u01/app/oraInventory/orainstRoot.sh
 /u01/app/23.26/grid/root.sh
 ```
 
-8. As grid, verify the cluster.
+Node 2's first root script failed with CLSRSC-117 after the VM froze for about 71 minutes. The retry succeeded. See the [October 18 incident report](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/docs/rac26-build-updates/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md); the host hypervisor correction remains in progress.
+
+Inspect root-script logs without relying on ambiguous `tail -15` parsing when the wildcard matches several files:
+
+```bash
+tail -n 15 /u01/app/grid/crsdata/racnode1/crsconfig/rootcrs_racnode1_*.log
+tail -n 15 /u01/app/grid/crsdata/racnode2/crsconfig/rootcrs_racnode2_*.log
+```
+
+The installer ended with `INS-43080`, exit status `-1`. I traced the post-install CVU failure to PRVH-1558 / PRVG-1101, SCAN missing from DNS; the other post-install checks passed in my record. Treat a different failure set as a new incident, not an expected warning.
+
+I kept `/u01/app/23.26/grid/install/response/grid_<timestamp>.rsp`, checked the short password keys (`sysasmPassword=`, `asmsnmpPassword=`) were empty, and set mode 600. Do not publish the whole response file without another secret review; it is useful later for a silent install.
+
+8. As grid, check both nodes and preserve the actual results:
 
 ```bash
 crsctl check cluster -all
@@ -561,14 +694,57 @@ crsctl stat res -t
 crsctl query crs activeversion
 olsnodes -n -s
 ocrcheck
+srvctl config scan
 srvctl status scan_listener
+cemutlo -n
 ```
 
-Expected: CRS, CSS and EVM online on both nodes, both nodes Active, OCR integrity check succeeded, active version 23.x.
+`crsctl check cluster -all` must list both nodes. In my resource table, ASM, OCR, node listeners/VIPs, three SCAN VIPs/listeners, ASM network, ONS and CVU were ONLINE. `ora.helper`, `ora.cdp1`–`ora.cdp3`, `ora.cvuhelper` and `ora.rhpserver` were OFFLINE; that was acceptable for this lab's configured features, not a blanket rule for other clusters. Compare target/state/details before diagnosing a resource as failed. DATA/FRA diskgroups and database instances do not exist yet.
 
-Alternative for later: 26ai also supports a command-line Grid install (`gridSetup.sh -silent` with a response file). That fits the automation project better than the GUI once the manual build works.
+### SCAN resolution and the lab exception
 
-Sources: [26ai Grid CLI install](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/installing-grid-using-command-line-interface.html), [26ai Grid upgrade with setup wizard (root script automation)](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/running-oui-to-upgrade-grid-infrastructure-from-an-earlier-release.html).
+I observed three SCAN VIP/listener resources after using three `/etc/hosts` entries. Confirm resource configuration with `srvctl config scan`, and check `getent hosts rac-scan` on both nodes and each client. Resource count does not prove correct client resolution or connection distribution.
+
+[Oracle's SCAN DNS guidance](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/confirming-the-dns-configuration-for-scan.html) recommends against hosts-file SCAN configuration and describes its single-address limitation. My observed resource count does not change that guidance: the hosts-file exception affects server validation as well as clients. Configure and verify DNS/GNS before treating three-address SCAN resolution as a reproducible supported setup.
+
+### Preserve Phase 7 evidence
+
+Before any reboot, copy installer and cluvfy logs from `/tmp` to `/home/grid/evidence/phase07/`. Identify exact log paths first, then copy each intended file; root's `cp` may be aliased to `cp -i`, so `command cp` avoids an unexpected prompt. For example, as root with real source paths substituted:
+
+```bash
+install -d -o grid -g oinstall -m 700 /home/grid/evidence/phase07
+command cp -a /tmp/<installer-log> /home/grid/evidence/phase07/
+command cp -a /tmp/<cluvfy-log> /home/grid/evidence/phase07/
+```
+
+Check copied files, grant grid access to the intended copies if needed, and redact before publishing. The raw logs were not supplied with this documentation update; results here record my build account, not independent replay of the lab.
+
+## Operating the cluster
+
+I tested Clusterware/SCAN operations before creating a database. Run Clusterware stop/start commands as root. If `crsctl stop cluster -all` fails with CRS-4405, stop locally on each node:
+
+```bash
+crsctl stop crs
+crsctl check crs
+```
+
+CRS-4639 confirms the local High Availability Services could not be contacted after stopping. Once both nodes are stopped, start CRS on each node and recheck cluster membership/resources:
+
+```bash
+crsctl start crs
+crsctl check cluster -all
+crsctl stat res -t
+```
+
+After my restart, node 2's VIP stayed FAILED OVER on node 1. With node 2 healthy, I used srvctl as grid:
+
+```bash
+srvctl config vip -node racnode2
+srvctl relocate vip -vip racnode2-vip -node racnode2
+crsctl stat res ora.racnode2.vip ora.LISTENER.lsnr -t
+```
+
+The listener restarted when its VIP returned. PRCZ-4054, "already running", was harmless in that confirmed state; verify the listener before dismissing it elsewhere. Stopping node 1 first relocated its SCAN VIPs/listeners to node 2, demonstrating SCAN resource failover. It did not test database or application-service failover: no RAC database has been created.
 
 ---
 
@@ -595,11 +771,11 @@ CREATE DISKGROUP DATA EXTERNAL REDUNDANCY DISK '/dev/asm-disk2';
 CREATE DISKGROUP FRA  EXTERNAL REDUNDANCY DISK '/dev/asm-disk3';
 ```
 
-3. Mount them on node 2 (as grid on rac26node2).
+3. Mount them on node 2 (as grid on racnode2).
 
 ```bash
-srvctl start diskgroup -diskgroup DATA -node rac26node2
-srvctl start diskgroup -diskgroup FRA -node rac26node2
+srvctl start diskgroup -diskgroup DATA -node racnode2
+srvctl start diskgroup -diskgroup FRA -node racnode2
 ```
 
 4. Verify from either node.
@@ -640,7 +816,7 @@ cd /u01/app/oracle/product/23.26/dbhome_1
 | ------------------------------- | ------------------------------------------------------ |
 | Configuration option            | Set Up Software Only                                   |
 | Database installation option    | Oracle Real Application Clusters database installation |
-| Nodes                           | rac26node1, rac26node2 (SSH test passes)                   |
+| Nodes                           | racnode1, racnode2 (SSH test passes)                   |
 | Edition                         | Enterprise Edition                                     |
 | Oracle base                     | /u01/app/oracle                                        |
 | OSDBA / OSOPER                  | dba / oper                                             |
@@ -661,7 +837,7 @@ Do not choose single-instance installation. A RAC database cannot be created fro
 ```bash
 sqlplus -v
 $ORACLE_HOME/OPatch/opatch lspatches
-ssh rac26node2 ls /u01/app/oracle/product/23.26/dbhome_1/bin/oracle
+ssh racnode2 ls /u01/app/oracle/product/23.26/dbhome_1/bin/oracle
 ```
 
 ---
@@ -682,7 +858,7 @@ dbca
 | Database type                     | Oracle Real Application Cluster (RAC) database                                       |
 | Management                        | Admin Managed                                                                        |
 | Template                          | General Purpose or Transaction Processing                                            |
-| Nodes                             | rac26node1, rac26node2                                                                   |
+| Nodes                             | racnode1, racnode2                                                                   |
 | Global database name / SID prefix | RAC / RAC (instances RAC1, RAC2)                                                     |
 | Container database                | Yes (the only option in 26ai), PDB name RACPDB1                                      |
 | Storage                           | ASM, datafiles in +DATA                                                              |
@@ -792,6 +968,9 @@ asmcmd ls +FRA
 8. Never commit passwords, disk serials or other live values to GitHub.
 9. Stay on OL9 until 26ai RAC on OL10 is proven in your lab.
 10. Resolve every **Verify** with recorded results during the first build. Change Status to Tested only after the complete procedure and acceptance tests have passed.
+11. Turn MobaXterm multi-execution off for single-node steps (disk wiping, installers and ssh-copy-id); exclude panes logged in as another user.
+12. Do not paste commands that can prompt (`su -`, `ssh-copy-id`, root's interactive `cp`, `rm -i`) as part of a block.
+13. Check VBox.log for snail mode before any long step.
 
 
 ## References for this revision
@@ -802,5 +981,5 @@ asmcmd ls +FRA
 - [26ai ASM device persistence](https://docs.oracle.com/en/database/oracle/oracle-database/26/ladbi/configuring-device-persistence-manually-for-oracle-asm.html)
 - [26ai ASM creation and default compatibility values](https://docs.oracle.com/en/database/oracle/oracle-database/26/ostmg/create-diskgroups.html)
 
-**Evidence status:** The VM creation and installer screenshots establish preparation progress only. Final installed OS layout, running kernel, node 2, shared-disk mapping, Grid installation and database validation remain to be recorded. This revision is not evidence of a completed 26ai cluster.
+**Evidence status:** I completed and tested Phases 0–7 on 2026-10-18, including Grid/ASM OCR and Clusterware/SCAN operations on both nodes. This revision records my reported build results; raw logs and screenshots were not supplied or added by this update. The Windows hypervisor fix, installed cluster name, media signature execution and exact kernel/RU certification still need verification. Phases 8–12 are not yet run: no DATA/FRA diskgroups, database software installation, DBCA result or database availability tests are claimed. Status remains Draft.
 
