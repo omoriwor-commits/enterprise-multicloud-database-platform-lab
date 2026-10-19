@@ -1,16 +1,18 @@
 # Oracle AI Database 26ai Two-Node RAC Build Runbook
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-19
 
 ## Overview
 
-This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the phases of my tested 19c runbook, updated for 26ai, with Phase 0 added for the VirtualBox setup. I completed Phases 0–7 on October 18, 2026. Remaining **Verify** items identify checks still needing confirmation or retained checks for the next build. Phases 8–12 remain unrun; Grid installation is not a completed RAC database.
+This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the phases of my tested 19c runbook, updated for 26ai, with Phase 0 added for the VirtualBox setup. I completed Phases 0–9 between October 17 and October 19, 2026: Grid Infrastructure, ASM diskgroups and the RAC database software home on both nodes. Remaining **Verify** items identify checks still needing confirmation or retained checks for the next build. Phases 10–12 remain unrun; no RAC database or database availability test is claimed.
 
-**Status:** Draft. Phases 0–7 built and tested on 2026-10-18; Phases 8–12 not yet run.
+**Status:** Draft. Phases 0–9 built and tested from 2026-10-17 to 2026-10-19 (Grid Infrastructure 23.26.1, ASM diskgroups and RAC database home on both nodes). Phases 10–12 (DBCA, validation and cleanup) are not yet run. Remaining **Verify** checks are not confirmed.
 
 **Baseline:** [Tested Oracle 19c two-node RAC build and troubleshooting runbook](oracle19c-2node-rac-build-and-troubleshooting.md).
 
 **Scope:** Lab only. Firewall and SELinux shortcuts here are not for real environments. This runbook does not establish Oracle support for RAC in VirtualBox; verify the exact hardware, virtualization, OS/kernel and release-update combination against Oracle's current certification information.
+
+**Related incident:** [Node 2 root-script VM freeze](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/docs/rac26-build-updates/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md). My first Grid root-script attempt on node 2 failed after a prolonged VM freeze. I subsequently confirmed VT-x with nested paging in both VM logs on October 18; raw evidence is still to be published.
 
 ### Lab layout
 
@@ -22,7 +24,7 @@ This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in 
 | VIP                                 | 192.168.56.111 | 192.168.56.112 |
 | Private interconnect (192.168.57.x) | 192.168.57.101 | 192.168.57.102 |
 | ASM instance                        | +ASM1          | +ASM2          |
-| DB instance                         | RAC1           | RAC2           |
+| Planned DB instance (not created)   | RAC1           | RAC2           |
 
 SCAN: `rac-scan`, with hosts-file entries `192.168.56.120` through `192.168.56.122`. I observed three SCAN VIPs/listeners in this build. This is a lab observation, not a guarantee that repeated hosts-file entries provide correct resolution for every node or client. Oracle recommends DNS/GNS for SCAN; see the Phase 7 checks. Intended cluster name: `raccluster`; **Verify** the installed name with `cemutlo -n`.
 
@@ -62,7 +64,7 @@ Shared disks are fixed size, Shareable, and attached at the same SATA ports on b
 | 2 | `fra01.vdi` | 30 GB | `/dev/sdc` | FRA / `asm-disk3` |
 | 3 | `ocr01.vdi` | 20 GB | `/dev/sdd` | OCR / `asm-disk1` |
 
-Device letters depend on controller port order and can shift. Map disks by serial and size, never by `sdX` alone. DATA and FRA are candidate disks; their diskgroups have not yet been created.
+Device letters depend on controller port order and can shift. Map disks by serial and size, never by `sdX` alone. DATA and FRA were candidates before Phase 8. I have now created and mounted all three diskgroups on both ASM instances; see Phase 8.
 
 ### Software paths
 
@@ -73,8 +75,11 @@ Device letters depend on controller port order and can shift. Map disks by seria
 | DB home   | /u01/app/oracle/product/23.26/dbhome_1 |
 | DB base   | /u01/app/oracle                        |
 | Inventory | /u01/app/oraInventory                  |
+| Staging | /u01/stage (`grid:oinstall`, mode 775) |
 
 Media examples: `LINUX.X64_2326100_grid_home.zip` and `LINUX.X64_2326100_db_home.zip` identify 23.26.1 images. They are examples, not a frozen recommendation for every OL9 kernel. **Verify** the exact Grid and Database image/RU, patch README, OS and running kernel before installation. Oracle documents OL9 UEK8 support starting with RU 23.26.2; do not install 23.26.1 unchanged on UEK8 and assume compatibility. Use a documented supported kernel or obtain/apply compatible updates according to their installation instructions. Keep matching intended Grid/Database patch levels on both nodes. Home directory names do not establish installed versions.
+
+**Compatibility gate before DBCA:** My reported build runs Oracle Linux 9.8, UEK `6.12.0-207.111.5.4.el9uek.x86_64`, Grid 23.26.1 and SQL*Plus 23.26.1 on both nodes. The successful installation is an observed lab result, not certification. Oracle's [Grid](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/supported-oracle-linux-9-distributions-for-x86-64.html) and [Database](https://docs.oracle.com/en/database/oracle/oracle-database/26/ladbi/supported-oracle-linux-9-distributions-for-x86-64.html) guides document UEK8 support starting with RU 23.26.2. **Do not proceed to DBCA until the running kernel and actual Grid/DB patch inventories have been reconciled with a documented compatible combination.** Select a documented supported kernel or plan compatible Grid and DB RUs using their patch READMEs; this runbook does not claim that either correction has been performed.
 
 ### What changed from the 19c runbook
 
@@ -137,7 +142,7 @@ Reset any copied grid/oracle user SSH keys before Phase 6 so each user/node has 
 
 These disks came from my deleted 19c cluster and carried old ASM headers. The Phase 4 wipe was mandatory **once before provisioning this fresh build**. Before any wipe, confirm that each disk is attached only to `rac26node1` and `rac26node2`. Do not repeat the wipe now that Grid/OCR is installed.
 
-### Host prerequisites — Verify: fix in progress
+### Host prerequisites — VT-x confirmed in my build
 
 For this build I want VirtualBox using hardware VT-x rather than Hyper-V "snail mode". Check each VM's log after starting it, from PowerShell:
 
@@ -155,7 +160,17 @@ bcdedit /set hypervisorlaunchtype off
 
 To undo that boot setting, use `bcdedit /set hypervisorlaunchtype auto` and reboot. Check Virtualization-Based Security, Core Isolation/Memory Integrity and the Windows virtualization features too; changing them affects WSL2/Docker availability and may affect host security. See [VirtualBox Hyper-V troubleshooting](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/Troubleshooting.html).
 
-**Verify: fix in progress.** Snail mode was still present after my first `bcdedit` attempt. I have not confirmed the final fix; require a fresh log showing hardware virtualization before treating it as resolved.
+The first `bcdedit` attempt did not remove snail mode. **Resolved in my build on 2026-10-18:** I subsequently confirmed that both VM logs showed VT-x with nested paging and unrestricted guest execution. This is my reported log result; the before/after logs have not been supplied or published with this update. Do not treat a boot-setting value alone as proof that the Windows hypervisor is absent.
+
+Before starting a VM after the Windows reboot, inspect the boot setting, hypervisor detection and VBS state from an elevated PowerShell session:
+
+```powershell
+bcdedit /enum | findstr /i hypervisorlaunchtype
+systeminfo | Select-String "Hyper-V" -Context 0,4
+Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard | Select-Object VirtualizationBasedSecurityStatus
+```
+
+For my selected native-VT-x configuration, `hypervisorlaunchtype` should be Off, systeminfo should not report a detected hypervisor, and VBS should not be running. Confirm the VM's fresh VBox.log reports VT-x/nested paging after startup. Displayed wording varies by Windows/VirtualBox version; keep host and VM evidence together.
 
 Set Windows to never sleep while the lab runs; my host suspended overnight. Copy each VM's `VBox.log` before its next start if it is needed as evidence, because VirtualBox rotates logs at VM start. Redact Windows paths as `C:\Users\<user>\...` and remove IDs, MACs and VM UUIDs before publishing.
 
@@ -171,6 +186,8 @@ Both nodes need Oracle Linux 9, static public/private cluster interfaces plus NA
 cat /etc/oracle-release
 uname -r
 ```
+
+My reported OS/kernel on both nodes: Oracle Linux Server 9.8 and UEK `6.12.0-207.111.5.4.el9uek.x86_64`. The Software paths compatibility gate applies before DBCA. My build temporarily allowed password-based root SSH; the procedure here continues to use the administrator account and `sudo -i`. Remove that temporary root-password access during hardening; do not enable it just to follow the runbook.
 
 2. Set the hostname.
 
@@ -192,7 +209,7 @@ ip -br addr
 ip route
 ```
 
-Replace the angle-bracket connection placeholders; do not run them literally. Verify no stale .101 address remains on node 2.
+Replace the angle-bracket connection placeholders; do not run them literally. Verify no stale .101 address remains on node 2. My NAT adapter showed `10.0.4.15` on each VM; duplicate guest addresses are normal when the VMs use separate per-VM NAT networks, not a shared NAT Network.
 
 Add these entries to `/etc/hosts` on both nodes; preserve required localhost entries and remove conflicting old RAC entries.
 
@@ -285,7 +302,7 @@ df -hT
 swapon --show
 ```
 
-**Verify** both nodes have the same intended kernel/packages. Oracle recommends `tsc` for virtual x86-64 environments, where available and suitable. Oracle's current checklist and detailed guide differ in THP wording; verify the selected release's guidance, record the chosen setting and validate it after reboot rather than silently switching between `never`, `madvise` and `always`.
+**Verify** both nodes have the same intended kernel/packages, and record clock source and THP state. Oracle recommends `tsc` for suitable virtual x86-64 environments. The [26ai Grid OS guide](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/configuring-operating-systems-for-oracle-grid-infrastructure-on-linux.html) recommends THP `madvise` for UEK7 and later. The actual clock source and THP state have not been confirmed in the supplied build record. Plan any persistent setting change against the selected kernel/RU, then verify it after reboot; explicit HugePages sizing is a separate task.
 
 ### Swap correction used in this build
 
@@ -312,7 +329,7 @@ Expected: the original swap plus `/swapfile`, sufficient total swap for cluvfy, 
 
 ## Phase 2: Users, groups, limits
 
-The 26ai preinstall RPM does most of the work the 19c runbook did by hand. Run it first, then add only what it does not create. UIDs and GIDs must match on both nodes.
+The preinstall RPM from Phase 1 does most of the work the 19c runbook did by hand. This phase checks what it created and adds only what it does not. UIDs and GIDs must match on both nodes.
 
 1. Confirm Phase 1 installed the preinstall RPM on both nodes.
 
@@ -395,13 +412,16 @@ mkdir -p /u01/app/23.26/grid
 mkdir -p /u01/app/grid
 mkdir -p /u01/app/oracle/product/23.26/dbhome_1
 mkdir -p /u01/app/oraInventory
+mkdir -p /u01/stage
 
 chown -R grid:oinstall /u01/app/23.26
 chown -R grid:oinstall /u01/app/grid
 chown -R grid:oinstall /u01/app/oraInventory
 chown -R oracle:oinstall /u01/app/oracle
+chown grid:oinstall /u01/stage
 
 chmod -R 775 /u01/app
+chmod 775 /u01/stage
 chmod 755 /u01
 ```
 
@@ -562,11 +582,33 @@ for user in grid oracle; do
 done
 ```
 
+### SSH performance correction found during Phase 9
+
+The database installer reported INS-06009 even though its SSH connectivity test passed. In my timing comparison, login took about 1.96 seconds with GSSAPI and 0.67 seconds without it. Disabling GSSAPI for the four RAC aliases removed that delay in my lab; this is an observed correction, not a diagnosis for every slow SSH login.
+
+For grid and oracle on **each node**, edit `~/.ssh/config` and add or update the matching Host stanza. Inspect existing matching `Host`/`Match` rules first: SSH generally uses the first obtained setting, so appending duplicate blocks may not override an earlier value. Keep the change limited to the RAC aliases; see the [OpenSSH client configuration reference](https://man.openbsd.org/ssh_config):
+
+```text
+Host racnode1 racnode2 racnode1-priv racnode2-priv
+    GSSAPIAuthentication no
+```
+
+```bash
+chmod 600 ~/.ssh/config
+for h in racnode1 racnode2 racnode1-priv racnode2-priv; do
+    ssh -G "$h" | grep '^gssapiauthentication '
+    ssh -o BatchMode=yes "$h" hostname
+done
+time ssh -o BatchMode=yes racnode2 date
+```
+
+Expected effective setting: `gssapiauthentication no` for each alias, and prompt-free logins. Recheck from both users on both nodes. My measured sub-second result is a reference, not a universal pass threshold. Do not disable host-key checking or assume a successful login excludes DNS, CPU or other sources of delay.
+
 ---
 
 ## Phase 7: Grid Infrastructure install
 
-I installed Grid from node 1; the installer copied the home to node 2. This phase completed on October 18, 2026 after the node 2 root-script retry described below. DATA/FRA diskgroup creation and database installation remain unrun.
+I installed Grid from node 1; the installer copied the home to node 2. This phase completed on October 18, 2026 after the node 2 root-script retry described below. I subsequently completed DATA/FRA diskgroup creation and the RAC software-only installation in Phases 8–9; DBCA remains unrun.
 
 1. Download media in a browser or with wget. Replace the placeholders locally; never commit a signed link or its AuthParam token. Capital `-O` selects the output file; lowercase `-o` selects wget's log:
 
@@ -627,7 +669,7 @@ The RPM emitted a `NOKEY` signature warning in my build. That warning means the 
 ls -l /usr/sbin/cvuqdisk
 ```
 
-Expected: `-rwsr-xr-x`, owner `root`, group `oinstall`.
+Expected: `-rwsr-xr-x`, owner `root`, group `oinstall`. My installed package was `cvuqdisk-1.0.10-1`.
 
 4. As grid, run the cluster pre-check with explicit cluster interfaces so the NAT adapter is excluded:
 
@@ -673,7 +715,7 @@ Earlier builds used `oinstall` for all Grid roles; this build uses role separati
 /u01/app/23.26/grid/root.sh
 ```
 
-Node 2's first root script failed with CLSRSC-117 after the VM froze for about 71 minutes. The retry succeeded. See the [October 18 incident report](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/docs/rac26-build-updates/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md); the host hypervisor correction remains in progress.
+Node 2's first root script failed with CLSRSC-117 after the VM froze for about 71 minutes. The retry succeeded. See the [October 18 incident report](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/docs/rac26-build-updates/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md); I later confirmed native VT-x in both VM logs on October 18.
 
 Inspect root-script logs without relying on ambiguous `tail -15` parsing when the wildcard matches several files:
 
@@ -699,7 +741,7 @@ srvctl status scan_listener
 cemutlo -n
 ```
 
-`crsctl check cluster -all` must list both nodes. In my resource table, ASM, OCR, node listeners/VIPs, three SCAN VIPs/listeners, ASM network, ONS and CVU were ONLINE. `ora.helper`, `ora.cdp1`–`ora.cdp3`, `ora.cvuhelper` and `ora.rhpserver` were OFFLINE; that was acceptable for this lab's configured features, not a blanket rule for other clusters. Compare target/state/details before diagnosing a resource as failed. DATA/FRA diskgroups and database instances do not exist yet.
+`crsctl check cluster -all` must list both nodes. In my resource table, ASM, OCR, node listeners/VIPs, three SCAN VIPs/listeners, ASM network, ONS and CVU were ONLINE. `ora.helper`, `ora.cdp1`–`ora.cdp3`, `ora.cvuhelper` and `ora.rhpserver` were OFFLINE; that was acceptable for this lab's configured features, not a blanket rule for other clusters. Compare target/state/details before diagnosing a resource as failed. At this Phase 7 checkpoint, DATA/FRA diskgroups had not been created. Phase 8 below records their subsequent creation; database instances still do not exist.
 
 ### SCAN resolution and the lab exception
 
@@ -744,105 +786,139 @@ srvctl relocate vip -vip racnode2-vip -node racnode2
 crsctl stat res ora.racnode2.vip ora.LISTENER.lsnr -t
 ```
 
-The listener restarted when its VIP returned. PRCZ-4054, "already running", was harmless in that confirmed state; verify the listener before dismissing it elsewhere. Stopping node 1 first relocated its SCAN VIPs/listeners to node 2, demonstrating SCAN resource failover. It did not test database or application-service failover: no RAC database has been created.
+The listener restarted when its VIP returned. PRCZ-4054, "already running", was harmless in that confirmed state; verify the listener before dismissing it elsewhere. Stopping node 1 first relocated its SCAN VIPs/listeners to node 2, demonstrating SCAN resource failover. It did not test database or application-service failover: no RAC database has been created. After the host correction, I started both nodes together and observed each VIP staying on its own node.
 
 ---
 
 ## Phase 8: ASM diskgroups
 
-Create DATA and FRA from node 1 as grid, then mount them on node 2. The 19c runbook hardcoded compatible values of 19.0; here they are left at the 26ai defaults and checked afterward.
+I created DATA and FRA from the X11-forwarded grid session on node 1 using `asmca` (Disk Groups → Create), selecting External redundancy, AU 4 MB and one intended disk per group. ASMCA mounted the groups on both nodes. These are reported build results; sanitized outputs are still to be published.
 
-1. Connect and check disk visibility.
+1. Before creation, check disk identity and header state. Do not rerun CREATE against the completed groups:
 
 ```bash
 sqlplus / as sysasm
 ```
 
 ```sql
-SELECT path, header_status, mount_status FROM v$asm_disk ORDER BY path;
+SET LINESIZE 150
+COLUMN path FORMAT a20
+SELECT path, header_status, mount_status, ROUND(total_mb/1024) gb
+FROM v$asm_disk ORDER BY path;
 ```
 
-Expected: asm-disk2 and asm-disk3 show CANDIDATE or PROVISIONED; asm-disk1 is MEMBER (OCR).
+Before creation, OCR (`asm-disk1`) was MEMBER and DATA/FRA (`asm-disk2` / `asm-disk3`) were CANDIDATE, CLOSED. After creation, all three disks showed MEMBER, CACHED.
 
-2. Create the diskgroups.
+2. For a future fresh build, the SQL alternative is below. **Verify** the resulting AU size, attributes, Clusterware registration and startup persistence if using SQL; ASMCA manages resource integration that a bare SQL command should not be assumed to perform:
 
 ```sql
 CREATE DISKGROUP DATA EXTERNAL REDUNDANCY DISK '/dev/asm-disk2';
 CREATE DISKGROUP FRA  EXTERNAL REDUNDANCY DISK '/dev/asm-disk3';
 ```
 
-3. Mount them on node 2 (as grid on racnode2).
+If using the SQL route, start registered diskgroups on node 2:
 
 ```bash
 srvctl start diskgroup -diskgroup DATA -node racnode2
 srvctl start diskgroup -diskgroup FRA -node racnode2
 ```
 
-4. Verify from either node.
+If srvctl cannot find a newly SQL-created group, configure the resource through ASMCA or the documented matching-release procedure. Do not recreate or format the disks.
+
+3. Verify the actual group attributes and both ASM instances:
 
 ```sql
-SELECT inst_id, name, state, total_mb, free_mb FROM gv$asm_diskgroup ORDER BY name, inst_id;
-SELECT name, compatibility, database_compatibility FROM v$asm_diskgroup;
+COLUMN name FORMAT a8
+SELECT name, compatibility, database_compatibility,
+       allocation_unit_size/1048576 au_mb
+FROM v$asm_diskgroup ORDER BY name;
+SELECT inst_id, name, state FROM gv$asm_diskgroup ORDER BY name, inst_id;
 ```
 
-Expected: OCR, DATA and FRA MOUNTED on both instances. **Verify** diskgroup Clusterware registration and startup persistence; if `srvctl` cannot find a newly SQL-created group, configure the resource through ASMCA or the documented matching-release procedure before retrying. Do not recreate or format the disks.
+My build results:
 
-**Verify** record compatibility before DBCA. Oracle documents new 26ai defaults of `compatible.asm=23.0` and `compatible.rdbms=19.0` when omitted. `compatible.asm` must be at least `compatible.rdbms`, and the database COMPATIBLE must meet the diskgroup RDBMS requirement. Raising attributes is irreversible; do not raise them merely to silence an unrelated DBCA error. You can create/manage the groups through `asmca` instead of SQL.
+| Diskgroup | Size | compatible.asm | compatible.rdbms | AU | State |
+|---|---:|---|---|---|---|
+| DATA | 40 GB | 23.0.0.0.0 | 19.0.0.0.0 | 4 MB | MOUNTED on ASM instances 1 and 2 |
+| FRA | 30 GB | 23.0.0.0.0 | 19.0.0.0.0 | 4 MB | MOUNTED on ASM instances 1 and 2 |
+| OCR | 20 GB | 23.0.0.0.0 | 19.0.0.0.0 | 4 MB | MOUNTED on ASM instances 1 and 2 |
+
+`compatible.asm` must be at least `compatible.rdbms`, and the database COMPATIBLE must meet the diskgroup RDBMS requirement. The observed 19.0 RDBMS requirement does not itself require raising the attributes for 26ai. Raising them is irreversible; do not change them just to silence an unrelated DBCA error. **Verify** startup persistence at the next controlled restart; current mounts do not prove reboot recovery.
 
 ---
 
 ## Phase 9: Database software install
 
-Install software only, as a RAC home, from node 1. The installer copies it to node 2.
+I installed the RAC database home in software-only mode from node 1. The installer copied the home to node 2; no database was created. Both nodes reported SQL*Plus 23.26.1.0.0. The kernel/RU compatibility gate remains open despite successful installation.
 
-1. As oracle, unzip on node 1 only.
+1. Log in directly to node 1 as oracle using MobaXterm SSH X11 forwarding. Do not launch through `su - oracle` from root:
 
 ```bash
-cd /u01/app/oracle/product/23.26/dbhome_1
-unzip -q /path/to/LINUX.X64_2326100_db_home.zip
+whoami
+hostname
+echo "$DISPLAY"
+echo "$ORACLE_HOME"
 ```
 
-2. **Verify** log in directly as oracle using SSH X11 forwarding, confirm DISPLAY, change to the DB home and launch the installer.
+My DISPLAY was `localhost:11.0` while the grid session used `:10`; use the authenticated value assigned to the current session, not a hardcoded display number.
+
+2. On a fresh software installation, confirm the DB home is empty before extracting. Skip extraction for the completed home:
 
 ```bash
-echo "$DISPLAY"
-cd /u01/app/oracle/product/23.26/dbhome_1
+ls -ld "$ORACLE_HOME"
+ls -A "$ORACLE_HOME"
+cd "$ORACLE_HOME"
+unzip -q /u01/stage/LINUX.X64_2326100_db_home.zip
+ls -l runInstaller
+```
+
+Expected initial home ownership: `oracle:oinstall`. Do not delete an existing home to make this check pass.
+
+3. Run the installer as oracle:
+
+```bash
 ./runInstaller
 ```
 
-3. Installer selections.
+| Screen | Selection / observation |
+|---|---|
+| Configuration Option | Set Up Software Only |
+| Database Installation Options | Oracle Real Application Clusters database installation |
+| Nodes Selection | racnode1 and racnode2 listed and selected; SSH Test, not Setup |
+| Installation Location | Base `/u01/app/oracle`; home `/u01/app/oracle/product/23.26/dbhome_1` |
+| OS groups | OSDBA `dba`, OSOPER `oper`, OSBACKUPDBA `backupdba`, OSDGDBA `dgdba`, OSKMDBA `kmdba`, OSRACDBA `racdba` |
+| Root script process | Automatic with root credentials entered locally |
+| Prerequisite Checks | HugePages Existence warning and SCAN DNS/NIS failure only in my run; I recorded and accepted those findings |
+| Summary | Enterprise Edition, Set Up Software Only, both nodes listed |
 
-| Screen                          | Value                                                  |
-| ------------------------------- | ------------------------------------------------------ |
-| Configuration option            | Set Up Software Only                                   |
-| Database installation option    | Oracle Real Application Clusters database installation |
-| Nodes                           | racnode1, racnode2 (SSH test passes)                   |
-| Edition                         | Enterprise Edition                                     |
-| Oracle base                     | /u01/app/oracle                                        |
-| OSDBA / OSOPER                  | dba / oper                                             |
-| OSBACKUPDBA / OSDGDBA / OSKMDBA | backupdba / dgdba / kmdba                              |
-| OSRACDBA                        | racdba (19c runbook used dba)                          |
-| Root scripts                    | Automatically run, or run manually when prompted       |
+There was no separate edition screen in my run; I checked Enterprise Edition on the Summary. The OSOPER field was initially blank, so select `oper` deliberately. Do not choose single-instance installation. Node 2's presence in the installer showed Grid inventory registration, not complete database readiness. Accept no additional prerequisite failure without diagnosing it; installer success does not resolve the UEK8/RU gap.
 
-Do not choose single-instance installation. A RAC database cannot be created from a single-instance home.
+INS-06009 reported slow SSH even though connectivity passed. The Phase 6 GSSAPI correction reduced the measured delay. I deferred explicit HugePages configuration until the intended SGA is known; size and verify it before database acceptance. THP and explicit HugePages are separate settings.
 
-4. If running root scripts manually, run on node 1, then node 2.
+4. With VT-x active, installation took about 12 minutes. Root scripts completed on node 1, then node 2, with no errors in my record. The finish screen reported "The registration of Oracle AI Database was successful." If running manually on a future build, execute `$ORACLE_HOME/root.sh` as root on node 1 to completion, then node 2, when prompted.
+
+5. Verify both homes as oracle. A non-login SSH command does not load `.bash_profile`, so use explicit paths/environment for remote checks:
 
 ```bash
-/u01/app/oracle/product/23.26/dbhome_1/root.sh
+"$ORACLE_HOME/bin/sqlplus" -v
+ls -l "$ORACLE_HOME/bin/oracle"
+ssh racnode2 'ORACLE_HOME=/u01/app/oracle/product/23.26/dbhome_1 /u01/app/oracle/product/23.26/dbhome_1/bin/sqlplus -v'
+ssh racnode2 ls -l /u01/app/oracle/product/23.26/dbhome_1/bin/oracle
 ```
 
-5. Verify on both nodes as oracle.
+Both nodes reported SQL*Plus 23.26.1.0.0. The observed Oracle executable was 542070280 bytes, owner `oracle`, group `asmdba`, mode `-rwsr-s--x`. Preserve installer-managed executable ownership/mode; do not generalize these observations into a blanket chmod/chown procedure. The group permits the intended ASM disk access in this role-separated lab.
+
+**Verify** actual patch inventories before choosing the kernel/RU correction. SQL*Plus version and directory names are not complete patch inventories. Run the matching Grid and DB OPatch inventory commands as their respective software owners on each node; retain sanitized output:
 
 ```bash
-sqlplus -v
-$ORACLE_HOME/OPatch/opatch lspatches
-ssh racnode2 ls /u01/app/oracle/product/23.26/dbhome_1/bin/oracle
+"$ORACLE_HOME/OPatch/opatch" lspatches
 ```
 
 ---
 
 ## Phase 10: Create the 2-node RAC database with DBCA
+
+**Not yet run.** Resolve the Software paths kernel/RU compatibility gate before DBCA. For a pre-DBCA checkpoint, stop the cluster cleanly and shut down both VMs before making backups. A VirtualBox snapshot protects only the disks it includes: [Shareable ASM disks are not snapshotted](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/storage.html). If using snapshots, also preserve consistent powered-off copies of all shared disk files and necessary VM configuration; restoring node OS snapshots alone after ASM/OCR changes can leave an inconsistent cluster. No snapshot or backup is claimed as completed here.
 
 Run DBCA as oracle on node 1 with Advanced Configuration from a verified SSH X11 session. The result is a container database RAC with one PDB, RACPDB1.
 
@@ -875,7 +951,7 @@ Review the summary page, save the response file for the automation project, then
 
 ## Phase 11: Post-build validation
 
-The build is done when both instances are open, the PDB is open on both, and a client connects through SCAN. Save the output of each check as evidence, with passwords and serials removed.
+**Not yet run.** The build is done when both instances are open, the PDB is open on both, and a client connects through SCAN. Save the output of each check as evidence, with passwords and serials removed.
 
 1. Cluster and database resources (as oracle):
 
@@ -931,7 +1007,7 @@ After restart, recheck both instances, PDB open modes and service placement. **V
 
 ## Phase 12: If DBCA fails, and final rules
 
-Diagnose first and preserve the DBCA, alert, Clusterware and ASM logs before changing state. A failed DBCA operation does not automatically require wiping files or removing cluster registration.
+**Not yet run.** Diagnose first and preserve the DBCA, alert, Clusterware and ASM logs before changing state. A failed DBCA operation does not automatically require wiping files or removing cluster registration.
 
 1. Identify the exact failed database DB_UNIQUE_NAME, instances, diskgroup paths and resource names. Confirm no retained database uses them.
 2. **Verify** use DBCA's supported rollback/delete workflow for the failed database where applicable; review its deletion summary and collect output.
@@ -981,5 +1057,17 @@ asmcmd ls +FRA
 - [26ai ASM device persistence](https://docs.oracle.com/en/database/oracle/oracle-database/26/ladbi/configuring-device-persistence-manually-for-oracle-asm.html)
 - [26ai ASM creation and default compatibility values](https://docs.oracle.com/en/database/oracle/oracle-database/26/ostmg/create-diskgroups.html)
 
-**Evidence status:** I completed and tested Phases 0–7 on 2026-10-18, including Grid/ASM OCR and Clusterware/SCAN operations on both nodes. This revision records my reported build results; raw logs and screenshots were not supplied or added by this update. The Windows hypervisor fix, installed cluster name, media signature execution and exact kernel/RU certification still need verification. Phases 8–12 are not yet run: no DATA/FRA diskgroups, database software installation, DBCA result or database availability tests are claimed. Status remains Draft.
+## Evidence kept from this build
 
+| Phase | Evidence I report keeping |
+|---|---|
+| 0 | Before/after VBox.log: snail mode, then VT-x with nested paging |
+| 4 | Actual ASM device permissions and identical udev rules-file checksums from both nodes |
+| 6 | Eight-hostname SSH check on each node; SSH timing comparison |
+| 7 | Media checksums, failed/clean pre-checks, both root-script logs including node 2's retry, installer/resource outputs and locally checked response file |
+| 8 | Diskgroup compatibility, AU size and mount status on both ASM instances |
+| 9 | SQL*Plus version and Oracle executable metadata from both nodes |
+
+**Evidence status:** I report Phases 0–9 completed and tested between 2026-10-17 and 2026-10-19. I confirmed native VT-x in both VM logs on October 18. Raw logs, screenshots and the local evidence files above have not been supplied or added by this documentation update; no independent reproduction is claimed. Installed cluster name, media signature execution, clock/THP state, full patch inventories and the kernel/RU compatibility correction still need verification. Phases 10–12 remain unrun: no DBCA result or database availability acceptance is claimed. Status remains Draft.
+
+Before publishing evidence, redact credentials, signed download tokens, Windows username paths, machine-ids/boot IDs, MACs, VM UUIDs, disk serials and X11 cookies.
