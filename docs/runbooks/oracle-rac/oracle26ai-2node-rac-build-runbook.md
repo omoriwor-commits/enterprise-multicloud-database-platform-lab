@@ -4,9 +4,9 @@
 
 ## Overview
 
-This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the phases of my tested 19c runbook, updated for 26ai, with Phase 0 added for the VirtualBox setup. I completed Phases 0–9 between October 17 and October 19, 2026: Grid Infrastructure, ASM diskgroups and the RAC database software home on both nodes. Remaining **Verify** items identify checks still needing confirmation or retained checks for the next build. Phases 10–12 remain unrun; no RAC database or database availability test is claimed.
+This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the phases of my tested 19c runbook, updated for 26ai, with Phase 0 added for the VirtualBox setup. I completed the two-node RAC build through database creation between October 17 and October 19, 2026. The supplied October 19 terminal output confirms RAC1/RAC2 OPEN, RACPDB1 READ WRITE on both instances, and the database service ONLINE on both nodes. Remaining **Verify** items and the rest of Phase 11 acceptance testing are not yet confirmed. No database restart/failover or SCAN client test is claimed from resource status alone.
 
-**Status:** Draft. Phases 0–9 built and tested from 2026-10-17 to 2026-10-19 (Grid Infrastructure 23.26.1, ASM diskgroups and RAC database home on both nodes). Phases 10–12 (DBCA, validation and cleanup) are not yet run. Remaining **Verify** checks are not confirmed.
+**Status:** Draft. Phases 0–10 completed from 2026-10-17 to 2026-10-19. Initial Phase 11 cluster, ASM, instance, PDB and service checks are confirmed by supplied terminal output. Remaining Phase 11 acceptance checks are pending; Phase 12 failure cleanup has not been exercised. Outstanding **Verify** items and the kernel/RU compatibility gap remain open.
 
 **Baseline:** [Tested Oracle 19c two-node RAC build and troubleshooting runbook](oracle19c-2node-rac-build-and-troubleshooting.md).
 
@@ -24,7 +24,7 @@ This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in 
 | VIP                                 | 192.168.56.111 | 192.168.56.112 |
 | Private interconnect (192.168.57.x) | 192.168.57.101 | 192.168.57.102 |
 | ASM instance                        | +ASM1          | +ASM2          |
-| Planned DB instance (not created)   | RAC1           | RAC2           |
+| DB instance                         | RAC1 (OPEN)    | RAC2 (OPEN)    |
 
 SCAN: `rac-scan`, with hosts-file entries `192.168.56.120` through `192.168.56.122`. I observed three SCAN VIPs/listeners in this build. This is a lab observation, not a guarantee that repeated hosts-file entries provide correct resolution for every node or client. Oracle recommends DNS/GNS for SCAN; see the Phase 7 checks. Intended cluster name: `raccluster`; **Verify** the installed name with `cemutlo -n`.
 
@@ -79,7 +79,7 @@ Device letters depend on controller port order and can shift. Map disks by seria
 
 Media examples: `LINUX.X64_2326100_grid_home.zip` and `LINUX.X64_2326100_db_home.zip` identify 23.26.1 images. They are examples, not a frozen recommendation for every OL9 kernel. **Verify** the exact Grid and Database image/RU, patch README, OS and running kernel before installation. Oracle documents OL9 UEK8 support starting with RU 23.26.2; do not install 23.26.1 unchanged on UEK8 and assume compatibility. Use a documented supported kernel or obtain/apply compatible updates according to their installation instructions. Keep matching intended Grid/Database patch levels on both nodes. Home directory names do not establish installed versions.
 
-**Compatibility gate before DBCA:** My reported build runs Oracle Linux 9.8, UEK `6.12.0-207.111.5.4.el9uek.x86_64`, Grid 23.26.1 and SQL*Plus 23.26.1 on both nodes. The successful installation is an observed lab result, not certification. Oracle's [Grid](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/supported-oracle-linux-9-distributions-for-x86-64.html) and [Database](https://docs.oracle.com/en/database/oracle/oracle-database/26/ladbi/supported-oracle-linux-9-distributions-for-x86-64.html) guides document UEK8 support starting with RU 23.26.2. **Do not proceed to DBCA until the running kernel and actual Grid/DB patch inventories have been reconciled with a documented compatible combination.** Select a documented supported kernel or plan compatible Grid and DB RUs using their patch READMEs; this runbook does not claim that either correction has been performed.
+**Outstanding kernel/RU compatibility gap:** My reported build runs Oracle Linux 9.8, UEK `6.12.0-207.111.5.4.el9uek.x86_64`, Grid 23.26.1 and SQL*Plus 23.26.1 on both nodes. The successful installation is an observed lab result, not certification. Oracle's [Grid](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/supported-oracle-linux-9-distributions-for-x86-64.html) and [Database](https://docs.oracle.com/en/database/oracle/oracle-database/26/ladbi/supported-oracle-linux-9-distributions-for-x86-64.html) guides document UEK8 support starting with RU 23.26.2. The database has now been created and is OPEN, but that does not close this gap. **Before further acceptance or failure testing, reconcile the running kernel and actual Grid/DB patch inventories with a documented compatible combination.** Select a documented supported kernel or plan compatible Grid and DB RUs using their patch READMEs; this runbook does not claim that either correction has been performed.
 
 ### What changed from the 19c runbook
 
@@ -187,7 +187,7 @@ cat /etc/oracle-release
 uname -r
 ```
 
-My reported OS/kernel on both nodes: Oracle Linux Server 9.8 and UEK `6.12.0-207.111.5.4.el9uek.x86_64`. The Software paths compatibility gate applies before DBCA. My build temporarily allowed password-based root SSH; the procedure here continues to use the administrator account and `sudo -i`. Remove that temporary root-password access during hardening; do not enable it just to follow the runbook.
+My reported OS/kernel on both nodes: Oracle Linux Server 9.8 and UEK `6.12.0-207.111.5.4.el9uek.x86_64`. The Software paths kernel/RU compatibility gap remains open after database creation. My build temporarily allowed password-based root SSH; the procedure here continues to use the administrator account and `sudo -i`. Remove that temporary root-password access during hardening; do not enable it just to follow the runbook.
 
 2. Set the hostname.
 
@@ -608,7 +608,7 @@ Expected effective setting: `gssapiauthentication no` for each alias, and prompt
 
 ## Phase 7: Grid Infrastructure install
 
-I installed Grid from node 1; the installer copied the home to node 2. This phase completed on October 18, 2026 after the node 2 root-script retry described below. I subsequently completed DATA/FRA diskgroup creation and the RAC software-only installation in Phases 8–9; DBCA remains unrun.
+I installed Grid from node 1; the installer copied the home to node 2. This phase completed on October 18, 2026 after the node 2 root-script retry described below. I subsequently completed DATA/FRA diskgroup creation, the RAC software-only installation and database creation in Phases 8–10.
 
 1. Download media in a browser or with wget. Replace the placeholders locally; never commit a signed link or its AuthParam token. Capital `-O` selects the output file; lowercase `-o` selects wget's log:
 
@@ -741,7 +741,7 @@ srvctl status scan_listener
 cemutlo -n
 ```
 
-`crsctl check cluster -all` must list both nodes. In my resource table, ASM, OCR, node listeners/VIPs, three SCAN VIPs/listeners, ASM network, ONS and CVU were ONLINE. `ora.helper`, `ora.cdp1`–`ora.cdp3`, `ora.cvuhelper` and `ora.rhpserver` were OFFLINE; that was acceptable for this lab's configured features, not a blanket rule for other clusters. Compare target/state/details before diagnosing a resource as failed. At this Phase 7 checkpoint, DATA/FRA diskgroups had not been created. Phase 8 below records their subsequent creation; database instances still do not exist.
+`crsctl check cluster -all` must list both nodes. In my resource table, ASM, OCR, node listeners/VIPs, three SCAN VIPs/listeners, ASM network, ONS and CVU were ONLINE. `ora.helper`, `ora.cdp1`–`ora.cdp3`, `ora.cvuhelper` and `ora.rhpserver` were OFFLINE; that was acceptable for this lab's configured features, not a blanket rule for other clusters. Compare target/state/details before diagnosing a resource as failed. At this Phase 7 checkpoint, DATA/FRA diskgroups had not been created. Phase 8 records their subsequent creation; the October 19 Phase 11 output now also confirms both database instances OPEN.
 
 ### SCAN resolution and the lab exception
 
@@ -786,7 +786,7 @@ srvctl relocate vip -vip racnode2-vip -node racnode2
 crsctl stat res ora.racnode2.vip ora.LISTENER.lsnr -t
 ```
 
-The listener restarted when its VIP returned. PRCZ-4054, "already running", was harmless in that confirmed state; verify the listener before dismissing it elsewhere. Stopping node 1 first relocated its SCAN VIPs/listeners to node 2, demonstrating SCAN resource failover. It did not test database or application-service failover: no RAC database has been created. After the host correction, I started both nodes together and observed each VIP staying on its own node.
+The listener restarted when its VIP returned. PRCZ-4054, "already running", was harmless in that confirmed state; verify the listener before dismissing it elsewhere. Stopping node 1 first relocated its SCAN VIPs/listeners to node 2, demonstrating SCAN resource failover. This earlier SCAN resource relocation did not test database or application-service failover; it happened before database creation. After the host correction, I started both nodes together and observed each VIP staying on its own node.
 
 ---
 
@@ -849,7 +849,7 @@ My build results:
 
 ## Phase 9: Database software install
 
-I installed the RAC database home in software-only mode from node 1. The installer copied the home to node 2; no database was created. Both nodes reported SQL*Plus 23.26.1.0.0. The kernel/RU compatibility gate remains open despite successful installation.
+I installed the RAC database home in software-only mode from node 1. The installer copied the home to node 2; that software-install phase did not create a database. Database creation was completed afterward in Phase 10. Both nodes reported SQL*Plus 23.26.1.0.0. The kernel/RU compatibility gate remains open despite successful installation.
 
 1. Log in directly to node 1 as oracle using MobaXterm SSH X11 forwarding. Do not launch through `su - oracle` from root:
 
@@ -918,7 +918,9 @@ Both nodes reported SQL*Plus 23.26.1.0.0. The observed Oracle executable was 542
 
 ## Phase 10: Create the 2-node RAC database with DBCA
 
-**Not yet run.** Resolve the Software paths kernel/RU compatibility gate before DBCA. For a pre-DBCA checkpoint, stop the cluster cleanly and shut down both VMs before making backups. A VirtualBox snapshot protects only the disks it includes: [Shareable ASM disks are not snapshotted](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/storage.html). If using snapshots, also preserve consistent powered-off copies of all shared disk files and necessary VM configuration; restoring node OS snapshots alone after ASM/OCR changes can leave an inconsistent cluster. No snapshot or backup is claimed as completed here.
+**Database creation completed on 2026-10-19.** I reported setup complete, then supplied SQL and Clusterware output confirming RAC1 and RAC2 OPEN, RACPDB1 READ WRITE on both, and the database service ONLINE on both nodes. See the [initial health evidence](../../evidence/oracle-rac/2026-10-19-rac26-initial-cluster-and-database-health.md). A DBCA completion log, response-file review and confirmation of every planned setting have not been supplied. Successful creation does not resolve the Software paths kernel/RU compatibility gap.
+
+The procedure below is retained for a future fresh build; do not rerun database creation against the completed RAC database. For a pre-DBCA checkpoint, stop the cluster cleanly and shut down both VMs before making backups. A VirtualBox snapshot protects only the disks it includes: [Shareable ASM disks are not snapshotted](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/storage.html). If using snapshots, also preserve consistent powered-off copies of all shared disk files and necessary VM configuration; restoring node OS snapshots alone after ASM/OCR changes can leave an inconsistent cluster. No snapshot or backup is claimed as completed here.
 
 Run DBCA as oracle on node 1 with Advanced Configuration from a verified SSH X11 session. The result is a container database RAC with one PDB, RACPDB1.
 
@@ -951,7 +953,18 @@ Review the summary page, save the response file for the automation project, then
 
 ## Phase 11: Post-build validation
 
-**Not yet run.** The build is done when both instances are open, the PDB is open on both, and a client connects through SCAN. Save the output of each check as evidence, with passwords and serials removed.
+**Initial checks confirmed on 2026-10-19; acceptance testing remains in progress.** The supplied terminal output shows:
+
+| Check | Confirmed result |
+|---|---|
+| Cluster services | CRS, CSS and EVM ONLINE on racnode1 and racnode2 |
+| ASM and storage resources | ASM and DATA/FRA/OCR ONLINE on both nodes |
+| Database instances | RAC1 on racnode1 OPEN; RAC2 on racnode2 OPEN |
+| PDB | RACPDB1 READ WRITE on instances 1 and 2; PDB$SEED READ ONLY on both |
+| Database service | `ora.rac.rac_racpdb1.svc` ONLINE on both nodes |
+| Network resources | Both node VIPs/listeners and three SCAN VIPs/listeners ONLINE |
+
+The [formatted evidence record](../../evidence/oracle-rac/2026-10-19-rac26-initial-cluster-and-database-health.md) is transcribed from the supplied terminal excerpt. It is not an independently collected log. These results establish an open two-node RAC database with an open PDB and online service. They do not establish client connectivity through SCAN, ARCHIVELOG mode, backup/recovery success, restart persistence, transparent session failover or certification. The checks below remain the acceptance procedure; retain actual results rather than treating expected output as evidence.
 
 1. Cluster and database resources (as oracle):
 
@@ -1067,7 +1080,8 @@ asmcmd ls +FRA
 | 7 | Media checksums, failed/clean pre-checks, both root-script logs including node 2's retry, installer/resource outputs and locally checked response file |
 | 8 | Diskgroup compatibility, AU size and mount status on both ASM instances |
 | 9 | SQL*Plus version and Oracle executable metadata from both nodes |
+| 10–11 | Supplied October 19 cluster/resource status and GV$INSTANCE/GV$PDBS results; [formatted evidence record](../../evidence/oracle-rac/2026-10-19-rac26-initial-cluster-and-database-health.md) committed with this revision |
 
-**Evidence status:** I report Phases 0–9 completed and tested between 2026-10-17 and 2026-10-19. I confirmed native VT-x in both VM logs on October 18. Raw logs, screenshots and the local evidence files above have not been supplied or added by this documentation update; no independent reproduction is claimed. Installed cluster name, media signature execution, clock/THP state, full patch inventories and the kernel/RU compatibility correction still need verification. Phases 10–12 remain unrun: no DBCA result or database availability acceptance is claimed. Status remains Draft.
+**Evidence status:** I completed the build through Phase 10 by 2026-10-19. The supplied terminal excerpt now substantiates initial Phase 11 health checks: both database instances OPEN, RACPDB1 READ WRITE on both, ASM resources and the database service ONLINE on both nodes. A formatted transcript of those results is included; installer/root-script logs, full patch inventories, screenshots and the other locally retained evidence have not been supplied or added. Installed cluster name, digital-signature execution, clock/THP state and kernel/RU compatibility remediation remain unconfirmed. SCAN client connectivity, ARCHIVELOG mode, backup/recovery and database restart/failover results remain unverified. Phase 12 cleanup is a contingency procedure, not a requirement to delete a working database or a claim that a failed DBCA path was tested. Status remains Draft pending the outstanding checks.
 
 Before publishing evidence, redact credentials, signed download tokens, Windows username paths, machine-ids/boot IDs, MACs, VM UUIDs, disk serials and X11 cookies.
