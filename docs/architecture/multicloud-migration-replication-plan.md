@@ -560,6 +560,8 @@ Use:
 
 ## 12. Current Project Status
 
+> **Status note — 2026-10-18:** The checklist below preserves the September 6 checkpoint. I subsequently completed one-way Oracle-to-SQL Server INSERT, UPDATE and DELETE apply; final sanitized target-side evidence remains to be published. AWS and Google Cloud PostgreSQL are planned, not built. See the [current outcome](../../README.md#final-outcome).
+
 ### Completed / Validated
 
 - [x] Azure subscription, budget, and cost controls

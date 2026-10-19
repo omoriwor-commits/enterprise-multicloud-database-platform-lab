@@ -6,13 +6,13 @@
 
 This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the same phases as my tested 19c runbook, updated for 26ai, with a Phase 0 added for the VirtualBox setup the 19c runbook assumed.
 
-**Status:** Phases 0 to 10 built and tested on 2026-10-17 to 2026-10-19 (Grid Infrastructure 23.26.1, ASM disk groups, RAC database home, RAC container database). Phase 11 validation is done except one check: connecting through SCAN while an instance is down. Phase 12 is a cleanup reference that wasn't needed. Steps still marked **Verify** have not been confirmed in my lab.
+**Status:** Draft documentation with the two-node build and functional validation completed on 2026-10-19. Phases 0–10 are built; Phase 11 checks cover both instances/PDBs, archiving, SCAN connection distribution, new connections while RAC2 is stopped, and instance/service restoration. The SCAN availability test completion is user-confirmed; its raw connection transcript is not included in this repository. The 10:46 CDT health snapshot validates database and ASM collection with zero critical findings and four warnings. Remaining **Verify** items, HugePages configuration and the documented kernel/RU compatibility gap remain open. Phase 12 is an unexercised contingency reference.
 
 **Baseline:** [Tested Oracle 19c two-node RAC build and troubleshooting runbook](oracle19c-2node-rac-build-and-troubleshooting.md).
 
-**Scope:** Lab only. Root SSH, firewall and SELinux shortcuts here are not for real environments. Oracle states that 26ai is currently not supported on non-Oracle hardware, so this VirtualBox build is for learning and testing, not a supported configuration.
+**Scope:** Lab only. Firewall and SELinux shortcuts here are not for real environments. This runbook does not establish Oracle support for RAC in VirtualBox; verify the exact hardware, virtualization, OS/kernel and release-update combination against Oracle's current certification information.
 
-**Related incident:** Node 2's first Grid root script failed with `CLSRSC-117` because the VM froze for about 71 minutes while VirtualBox was running in Hyper-V "snail mode". See the incident report `2026-10-18-rac26-node2-root-script-vm-freeze.md` and the Host prerequisites in Phase 0.
+**Related incident:** [Node 2 root-script VM freeze](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/docs/rac26-build-updates/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md). My first Grid root-script attempt on node 2 failed after a prolonged VM freeze. I subsequently confirmed VT-x with nested paging in both VM logs on October 18; raw evidence is still to be published.
 
 ### Lab layout
 
@@ -70,6 +70,8 @@ Device letters follow the port order and can shift. Map disks by serial and size
 | Staging | /u01/stage (grid:oinstall, 775) |
 
 Media: `LINUX.X64_2326100_grid_home.zip` and `LINUX.X64_2326100_db_home.zip` from Oracle's 26ai Linux downloads page. File names change with the release update, so use the names you actually download.
+
+**Outstanding kernel/RU compatibility gap:** My reported build runs Oracle Linux 9.8, UEK `6.12.0-207.111.5.4.el9uek.x86_64`, Grid 23.26.1 and SQL*Plus 23.26.1 on both nodes. The successful installation is an observed lab result, not certification. Oracle's [Grid](https://docs.oracle.com/en/database/oracle/oracle-database/26/cwlin/supported-oracle-linux-9-distributions-for-x86-64.html) and [Database](https://docs.oracle.com/en/database/oracle/oracle-database/26/ladbi/supported-oracle-linux-9-distributions-for-x86-64.html) guides document UEK8 support starting with RU 23.26.2. The database has now been created and is OPEN, but that does not close this gap. **Before further acceptance or failure testing, reconcile the running kernel and actual Grid/DB patch inventories with a documented compatible combination.** Select a documented supported kernel or plan compatible Grid and DB RUs using their patch READMEs; this runbook does not claim that either correction has been performed.
 
 ### What changed from the 19c runbook
 
@@ -796,7 +798,7 @@ cemutlo -n
 
 Expected: `crsctl check cluster -all` lists **both** nodes with CRS, CSS and EVM online; both nodes Active; ASM, OCR disk group, node listeners, node VIPs, three SCAN VIPs and listeners, ASM network, ONS and CVU ONLINE. `ora.helper`, `ora.cdp1` to `ora.cdp3`, `ora.cvuhelper` and `ora.rhpserver` OFFLINE is normal.
 
-The cluster creates all three SCAN VIPs from the three `/etc/hosts` entries. The `/etc/hosts` limitation only affects clients, which resolve `rac-scan` from their own hosts file and usually use just the first address.
+I observed three SCAN VIPs/listeners with this hosts-file configuration. That observation does not establish reliable three-address resolution for every server or client. Oracle recommends DNS/GNS for SCAN; the hosts-file exception affects server validation as well as clients. Confirm resolution and actual service routing in each environment.
 
 After my node 2 freeze, `crsctl check cluster -all` showed only the local node and cluster-wide commands failed with `CRS-4405`. A clean stop of both nodes (Appendix A) and a fresh start cleared it.
 
@@ -921,7 +923,7 @@ My build, on both nodes: SQL\*Plus Release 23.26.1.0.0, and `-rwsr-s--x oracle a
 
 ## Phase 10: Create the 2-node RAC database with DBCA
 
-Before starting, stop the cluster cleanly (Appendix A), shut down both VMs and take a VirtualBox snapshot of each (for example `phase9-db-software-installed`). Shareable disks are left out of snapshots, so a snapshot protects each node's OS and Oracle homes but not the ASM contents.
+Before starting, stop the cluster cleanly (Appendix A), shut down both VMs and take a VirtualBox snapshot of each (for example `phase9-db-software-installed`). Shareable disks are left out of snapshots, so a snapshot protects each node's OS and Oracle homes but not the ASM contents. Preserve consistent powered-off copies of the shared disks and necessary VM configuration for a complete rollback; restoring OS snapshots alone after ASM/OCR changes can leave inconsistent state. Backup completion is not claimed here.
 
 Run DBCA as oracle on node 1 from the same X11-forwarded session as Phase 9.
 
@@ -1022,15 +1024,16 @@ crsctl stat res -t
 asmcmd lsdg
 ```
 
-Expected: `ora.rac.db` Open on both nodes, `ora.rac.racpdb1.pdb` READ WRITE on both, `ora.rac.rac_racpdb1.svc` ONLINE on both, DATA, FRA and OCR disk groups ONLINE on both. After DBCA in my build: DATA about 36 of 40 GB free, FRA 29.5 of 30 GB, OCR 20.1 of 20 GB.
+Expected: `ora.rac.db` Open on both nodes, `ora.rac.racpdb1.pdb` READ WRITE on both, `ora.rac.rac_racpdb1.svc` ONLINE on both, DATA, FRA and OCR disk groups ONLINE on both. After DBCA in my build: DATA 35,920 of 40,960 MB free, FRA 29,428 of 30,720 MB, and OCR 20,116 of 20,480 MB in the 10:46 CDT snapshot.
 
 5. Run the RAC health check script as grid (`scripts/oracle-rac/rac_health_check.py`). It discovers the Grid and database homes and bases itself, so no overrides are needed on 26ai.
 
 ```bash
-./rac_health_check.py | tee ~/rac_health_$(date +%Y%m%d_%H%M).log; echo "exit=${PIPESTATUS[0]}"
+./rac_health_check.py --db RAC --pdb RACPDB1 --dbca-node racnode1 2>&1 | tee ~/rac_health_$(date +%Y%m%d_%H%M).log
+printf 'script_exit=%s\n' "${PIPESTATUS[0]}"
 ```
 
-Use `${PIPESTATUS[0]}`; plain `$?` after a pipe is the exit code of `tee`. My build: Clusterware, network, database and ASM all healthy. Status WARNING only because of two historical alert-log entries (the 03:44 `ORA-29770` in Phase 0's host notes, and an `ORA-00028` at 05:19 when DBCA closed its own sessions). HugePages reported as INFO.
+Use `${PIPESTATUS[0]}`; plain `$?` after a pipe is the exit code of `tee`. Revision `2026-10-19.3` was run as grid on racnode1 at 10:46 CDT on October 19. OS, Clusterware, database and ASM coverage were collected; local alerts were sampled on node 1 only. Both database instances were OPEN/ACTIVE, RACPDB1 was READ WRITE on both, all three disk groups were mounted on both ASM instances, and all six disk observations were MEMBER/CACHED/ONLINE/NORMAL. Result: REVIEW REQUIRED, zero critical findings, four warnings, exit 1. Warnings cover database/ASM alert history and the UEK8/23.26.1 compatibility flag on each node. Earlier DBCA-time errors are retained for correlation; their initiating causes are not established by this snapshot. See the [latest health evidence](../../evidence/oracle-rac/2026-10-19-rac26-health-check-v3.md).
 
 To date an alert-log entry, print the timestamp line that precedes it:
 
@@ -1057,7 +1060,7 @@ done
 
 Don't use `sqlplus system@//... <<< "SELECT ..."`: sqlplus reads the password from the same input, takes the SELECT line as the password and fails with `SP2-0306`. Connecting inside sqlplus also keeps the password out of the process list. Run `unset PW` when you're done.
 
-My build: RAC1, RAC1, RAC1, RAC2, RAC2, RAC2. The client resolves `rac-scan` from `/etc/hosts` and so always reaches the first SCAN listener, which hands each connection to the least loaded instance.
+My build: RAC1, RAC1, RAC1, RAC2, RAC2, RAC2. This is observed connection distribution, not a guarantee of alternation or proof that every client resolves all three SCAN addresses. The listener routes connections according to service registration and load information.
 
 7. Instance stop and restart (as oracle). In 26ai, stopping an instance that is running a PDB and service needs `-force`; without it, Clusterware refuses with `CRS-2974: unable to act on resource 'ora.rac.racpdb1.pdb' ... because that would require stopping or relocating resource 'ora.rac.rac_racpdb1.svc' but the appropriate force flag was not specified`.
 
@@ -1071,39 +1074,36 @@ srvctl status database -db RAC
 srvctl status service -db RAC
 ```
 
-My build: with RAC2 stopped, RAC1 kept running and `RAC_RACPDB1` ran on RAC1 only. After the restart, both instances ran and the service came back on RAC1 and RAC2 by itself. **Verify** the step 6 loop while RAC2 is down (every connection should land on RAC1).
+My build: with RAC2 stopped, RAC1 kept running and `RAC_RACPDB1` ran on RAC1 only. After the restart, both instances ran and the service came back on RAC1 and RAC2 by itself. Completed: I subsequently confirmed the SCAN connection test while RAC2 was down. This completion is user-reported; the raw connection transcript remains to be attached. This was a controlled instance-stop/new-connection test; transparent existing-session or transaction failover and unplanned node loss were not established.
 
 ---
 
 ## Phase 12: If DBCA fails, and final rules
 
-Clean every trace of a failed DBCA run before retrying; guessing on a dirty cluster wastes more time than the cleanup.
+**Not yet run.** Diagnose first and preserve the DBCA, alert, Clusterware and ASM logs before changing state. A failed DBCA operation does not automatically require wiping files or removing cluster registration.
 
-1. If DBCA offers to revert, choose Yes.
-2. Remove ASM residue, only if it belongs to the failed attempt (as grid):
+1. Identify the exact failed database DB_UNIQUE_NAME, instances, diskgroup paths and resource names. Confirm no retained database uses them.
+2. **Verify** use DBCA's supported rollback/delete workflow for the failed database where applicable; review its deletion summary and collect output.
+3. Inspect remaining resources and files without deleting them:
+
+```bash
+srvctl config database -db RAC
+srvctl status database -db RAC
+ps -ef | grep '[p]mon'
+grep -w RAC /etc/oratab
+ls -l "$ORACLE_HOME/dbs"
+```
+
+As grid, inspect ASM paths:
 
 ```bash
 asmcmd ls +DATA
 asmcmd ls +FRA
-asmcmd rm -rf +DATA/RAC
-asmcmd rm -rf +FRA/RAC
 ```
 
-3. Check local residue on both nodes (as oracle):
-
-```bash
-ps -ef | grep pmon
-grep RAC /etc/oratab
-ls $ORACLE_HOME/dbs | grep -i rac
-rm -f $ORACLE_HOME/dbs/*RAC*
-```
-
-4. Remove stale cluster registration:
-
-```bash
-srvctl config database -db RAC
-srvctl remove database -db RAC -force
-```
+4. **Verify** only if supported cleanup leaves confirmed orphan registration, review the installed SRVCTL help and remove the exact orphan resource. Resource removal is not proof that database files are removed.
+5. If files remain, inventory exact paths and dependencies, confirm the failed database is stopped, and delete only explicitly identified artifacts. No wildcard `rm`, blanket ASM tree removal or OCR/voting-disk cleanup belongs in the routine retry procedure.
+6. Resolve the original cause, rerun prerequisite/storage checks and then retry DBCA. Record the failed attempt and remediation.
 
 ### Final rules
 
@@ -1159,6 +1159,8 @@ crsctl stat res ora.racnode2.vip ora.LISTENER.lsnr -t   # VIP ONLINE on racnode2
 The listener restarts automatically when its VIP comes home; `PRCZ-4054 ... already running` from a later `srvctl start listener` is harmless. After the host fix, both nodes started together and the VIPs stayed on their own nodes.
 
 ## Appendix B: Evidence kept from this build
+
+Published: [initial cluster/database transcript](../../evidence/oracle-rac/2026-10-19-rac26-initial-cluster-and-database-health.md), [revision 2026-10-19.3 health assessment](../../evidence/oracle-rac/2026-10-19-rac26-health-check-v3.md), and its sanitized terminal transcript. Other evidence below is locally retained unless separately linked.
 
 | Phase | Evidence |
 | --- | --- |

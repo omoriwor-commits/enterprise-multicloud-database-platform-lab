@@ -1,4 +1,4 @@
-# Enterprise Data Platform Lab — Multi-Cloud Migration & Replication Plan
+# Phase 1 — Azure Foundation (checkpoint: August 25, 2026)
 
 **Checkpoint Date:** August 25, 2026
 
@@ -443,8 +443,8 @@ Google Cloud
 * [x] SQL Server VM deployed
 * [x] SQL Server 2022 Developer validated as running
 * [x] Windows Authentication validated
-* [x] SQL Server Authentication validated with `sqladminlab`
-* [x] `sqladminlab` verified as `sysadmin`
+* [x] SQL Server Authentication validated with `<sql-admin-login>`
+* [x] `<sql-admin-login>` verified as `sysadmin`
 * [x] MAXDOP configured to `2`
 * [x] Max server memory configured to `5120 MB`
 * [x] Optimize for ad hoc workloads enabled
@@ -478,7 +478,7 @@ Google Cloud
 * [x] SQL Server listener validated on TCP `1433`
 * [x] End-to-end OCI Oracle VM -> Azure SQL Server TCP `1433` connectivity validated successfully
 
-### Not Yet Deployed
+### Build checklist at this checkpoint
 
 * [x] OCI ↔ Azure Site-to-Site VPN established
 * [x] Azure VPN Gateway deployed
