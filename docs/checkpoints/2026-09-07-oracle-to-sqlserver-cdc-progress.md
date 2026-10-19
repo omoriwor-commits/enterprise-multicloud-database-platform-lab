@@ -117,6 +117,8 @@ VM size:     Standard_D2as_v7
 
 The SQL Server VM has no directly assigned public IP. Administration therefore uses a controlled SSH tunnel through the GoldenGate hub instead of exposing RDP broadly.
 
+> **Reconciliation note — 2026-10-19:** The statement above is retained as this September checkpoint's record. The [project overview](../../README.md) records a public-IP assignment; whether the records describe different build stages remains unconfirmed. Both describe administration through the GoldenGate hub. Neither establishes current cloud resource configuration.
+
 ### RDP troubleshooting
 
 Initial test from the GoldenGate hub:

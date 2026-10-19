@@ -759,7 +759,7 @@ DELETE EXPIRED ARCHIVELOG ALL;
 
 Any deletion of obsolete or backed-up archive logs must be based on RMAN evidence and recovery requirements.
 
-**Current status:** Root cause confirmed. Recovery/cleanup commands still require execution and post-change validation before this incident is marked fully resolved.
+**Recorded incident status:** Root cause confirmed. This retained incident record does not include executed recovery/cleanup output or post-change validation. Later migration completion is reported separately and does not by itself prove this incident's exact remediation sequence. Keep the incident-specific recovery outcome open until supporting output is retained.
 
 ---
 

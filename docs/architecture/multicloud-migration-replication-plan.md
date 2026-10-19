@@ -532,7 +532,7 @@ DELETE EXPIRED ARCHIVELOG ALL;
 
 Manual `rm` deletion inside FRA is intentionally avoided.
 
-**Status:** Root cause confirmed. Remediation still requires execution/post-change validation before the incident is marked fully resolved.
+**Recorded incident status:** Root cause confirmed; executed remediation and incident-specific post-change output are not included in this retained record. Later migration completion is reported separately. Do not infer the exact recovery sequence from that later outcome.
 
 ---
 

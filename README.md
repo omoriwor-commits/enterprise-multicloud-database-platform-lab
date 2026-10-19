@@ -123,7 +123,7 @@ Checkpoint table:     ogg_repl.ggs_checkpoint
 
 `ogg_repl` was granted `db_owner` for the lab build. Before any production use I would scope it down to only the permissions Replicat needs.
 
-The SQL Server VM was deployed with a public IP, but I did not open SQL Server (TCP 1433) or RDP to the internet through it. Administration went through an SSH/RDP tunnel via the GoldenGate hub.
+The project overview records a public-IP assignment, while the dated September checkpoint records no directly assigned public IP on the SQL Server VM. Whether those describe different build stages remains unconfirmed. Administration used the SSH/RDP tunnel via the GoldenGate hub; these records do not establish current cloud resource configuration.
 
 ### Azure GoldenGate Hub
 
@@ -196,7 +196,7 @@ This September snapshot confirmed source capture to the trail. Final end-to-end 
 | OCI<->Azure VPN did not establish correctly | Pre-shared-key mismatch | Corrected; IPsec and BGP validated |
 | GoldenGate Administration Server issue after reboot | Service/process state and prior deployment condition | Clean recovery/reinstall path established |
 | OGGCA stop/daemon-registration failure | Deployment services remained active after Service Manager stop | Controlled service shutdown; systemd registration succeeded |
-| Oracle SQL appeared hung | FRA quota exhausted; archive could not progress | FRA/RMAN recovery path established; capture validated |
+| Oracle SQL appeared hung | FRA quota exhausted; archive could not progress | Remediation approach documented; incident-specific post-change recovery output remains unconfirmed |
 | SQL Server private RDP unreachable | Azure NSG deny rule blocked 3389 | Source-restricted rule + SSH/RDP tunnel validated |
 | First SQL Server media SCP upload failed | Transfer dropped; incomplete ZIP | Corrupt copy removed and re-uploaded |
 | SQL Server GoldenGate media wrong platform | Windows-x64 archive downloaded | Correct Linux x86-64 package obtained |

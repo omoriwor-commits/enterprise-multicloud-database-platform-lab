@@ -12,7 +12,7 @@ This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in 
 
 **Scope:** Lab only. Firewall and SELinux shortcuts here are not for real environments. This runbook does not establish Oracle support for RAC in VirtualBox; verify the exact hardware, virtualization, OS/kernel and release-update combination against Oracle's current certification information.
 
-**Related incident:** [Node 2 root-script VM freeze](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/docs/rac26-build-updates/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md). My first Grid root-script attempt on node 2 failed after a prolonged VM freeze. I subsequently confirmed VT-x with nested paging in both VM logs on October 18; raw evidence is still to be published.
+**Related incident:** [Node 2 root-script VM freeze](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/main/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md). My first Grid root-script attempt on node 2 failed after a prolonged VM freeze. I subsequently confirmed VT-x with nested paging in both VM logs on October 18; raw evidence is still to be published.
 
 ### Lab layout
 
@@ -203,7 +203,7 @@ Reusing disks: my build reused the shared disks from my deleted 19c cluster. Reu
 
 ## Phase 1: OS prep on both nodes
 
-Both nodes need Oracle Linux 9, static IPs on the public and private NICs, matching time, and name resolution for every RAC address before any Oracle software goes on.
+Both nodes need Oracle Linux 9, static IPs on the public and private NICs, matching time, and name resolution for every RAC address before any Oracle software goes on. During OS installation, do not create oracle or grid manually; the preinstall RPM in Phase 1 creates oracle when absent, and Phase 2 creates grid.
 
 0. Lab only: allow root SSH with a password. Oracle Linux 9 blocks it by default. Run from the VirtualBox console.
 
@@ -295,7 +295,7 @@ sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
 getenforce
 ```
 
-Record the SELinux mode you end up using.
+Record the SELinux mode you end up using. The earlier October 2026 19c node 2 incident ended with SELinux disabled and an unconfirmed root cause; it is separate from this 26ai build.
 
 8. Install the 26ai preinstall RPM, update packages, then reboot.
 
@@ -374,6 +374,10 @@ rpm -q oracle-ai-database-preinstall-26ai
 id oracle
 getent group oinstall dba oper backupdba dgdba kmdba racdba
 ```
+
+> **First-build account finding — racnode1, 2026-10-17:** The OS installer had created oracle as UID/GID 1000 with only asmdba as a secondary group. The preinstall RPM retained the existing account; the correction was confirmed on racnode1. This does not establish that the same correction was needed or performed on node 2. Before Oracle software installation, inspect the existing account and required groups, verify the intended UID/GID is unused, and establish matching oracle/grid identities on both nodes. If correction is required, first confirm no oracle-owned processes are running and inventory all affected filesystems (including separate /home and /u01 mounts); change only the intended account and confirmed owned files. Do not apply broad UID-1000 ownership changes or delete groups on the completed running cluster. Preserve the actual IDs used; matching nodes matter more than selecting a new number after installation.
+>
+> Avoid this on a fresh build by letting the preinstall RPM create oracle. Account correction is a provisioning step, not a routine health-check repair.
 
 3. Create only the ASM groups (skip any that already exist).
 

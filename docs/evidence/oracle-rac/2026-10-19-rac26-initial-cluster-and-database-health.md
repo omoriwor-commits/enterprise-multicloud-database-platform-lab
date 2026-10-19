@@ -82,7 +82,11 @@ The OFFLINE resources have OFFLINE targets in this output; they are not shown as
 
 One RAC database has two open instances, RAC1 and RAC2. RACPDB1 is READ WRITE on both. ASM/storage, database/service, node VIP/listener and SCAN resources are online as listed. The output contains no reported failed resource state.
 
-## What remains unverified
+## Later evidence — October 19, 2026
+
+This section below preserves what the initial 06:48 excerpt did not establish. The subsequent [10:46 CDT health report](2026-10-19-rac26-health-check-v3.md) confirms ARCHIVELOG, database/ASM collection and raccluster in ASM client names; complete OPatch inventories were separately supplied in chat but are not attached to this initial record. Rotimi later confirmed the controlled RAC2-stop/SCAN-new-connection test and restoration complete. Raw SCAN connection output, backup/recovery, transparent session failover and node reboot/failure evidence are not supplied by this update.
+
+## What remained unverified by the initial excerpt
 
 - Client login to the intended PDB application service through SCAN, including name resolution.
 - ARCHIVELOG mode, backup and restore/recovery validation.
