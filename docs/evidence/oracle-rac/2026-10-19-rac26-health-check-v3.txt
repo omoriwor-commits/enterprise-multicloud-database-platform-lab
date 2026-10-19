@@ -1,0 +1,381 @@
+ORACLE RAC HEALTH SNAPSHOT — revision 2026-10-19.3
+Collected at: 2026-10-19T10:46:23.830399-05:00
+Host: racnode1; database: RAC; nodes: racnode1, racnode2
+Grid home/base: /u01/app/23.26/grid / /u01/app/grid
+DB home/base: /u01/app/oracle/product/23.26/dbhome_1 / /u01/app/oracle
+Local DB SID: RAC1; local ASM SID: +ASM1
+
+==============================================================================
+OPERATING SYSTEM HEALTH
+==============================================================================
+
+--- racnode1 ---
+__KERNEL__
+6.12.0-207.111.5.4.el9uek.x86_64
+__SELINUX__
+Permissive
+__MEM__
+               total        used        free      shared  buff/cache   available
+Mem:            9487        7072         540        3069        5348        2415
+Swap:          10155        2197        7958
+__HUGE__
+HugePages_Total:       0
+HugePages_Free:        0
+Hugepagesize:       2048 kB
+always [madvise] never
+__DF__
+Filesystem          1024-blocks     Used Available Capacity Mounted on
+/dev/mapper/ol-root    66220032 26878088  39341944      41% /
+/dev/mapper/ol-home    32296960   351324  31945636       2% /home
+/dev/sda1                983040   705212    277828      72% /boot
+Interval CPU busy mean 63.4%, peak 67.0% over 3.2s; 0/3 intervals >=85%.
+Process CPU percentages use one core = 100%; aggregate CPU uses all cores = 100%.
+Interval  Busy%  IOWait%  Steal%  SwapIn KiB/s  SwapOut KiB/s
+       1   62.2      0.5     0.0           0.0            0.0
+       2   67.0      0.0     0.0           0.0            0.0
+       3   61.1      0.0     0.0           0.0            0.0
+Busiest visible processes (peak interval CPU; exited/short-lived processes may be missed):
+  PID 700777: setroubleshootd 93.5%
+  PID 700873: SetroubleshootP 63.3%
+  PID 5220: osysmond.bin 10.5%
+  PID 5442: asm_dia1_+asm1 1.9%
+  PID 5790: orarootagent.bi 1.9%
+
+--- racnode2 ---
+__KERNEL__
+6.12.0-207.111.5.4.el9uek.x86_64
+__SELINUX__
+Permissive
+__MEM__
+               total        used        free      shared  buff/cache   available
+Mem:            9487        6976         547        3184        5507        2511
+Swap:          10155        1878        8277
+__HUGE__
+HugePages_Total:       0
+HugePages_Free:        0
+Hugepagesize:       2048 kB
+always [madvise] never
+__DF__
+Filesystem          1024-blocks     Used Available Capacity Mounted on
+/dev/mapper/ol-root    66220032 23057096  43162936      35% /
+/dev/mapper/ol-home    32296960   258440  32038520       1% /home
+/dev/sda1                983040   705212    277828      72% /boot
+Interval CPU busy mean 15.4%, peak 17.5% over 3.1s; 0/3 intervals >=85%.
+Process CPU percentages use one core = 100%; aggregate CPU uses all cores = 100%.
+Interval  Busy%  IOWait%  Steal%  SwapIn KiB/s  SwapOut KiB/s
+       1   16.4      0.5     0.0           0.0            0.0
+       2   12.4      0.0     0.0           0.0            0.0
+       3   17.5      0.0     0.0           0.0            0.0
+Busiest visible processes (peak interval CPU; exited/short-lived processes may be missed):
+  PID 5089: osysmond.bin 9.6%
+  PID 2518: java 4.8%
+  PID 2081: orarootagent.bi 2.9%
+  PID 5233: orarootagent.bi 2.9%
+  PID 1686: ohasd.bin 1.9%
+
+==============================================================================
+CLUSTERWARE AND NETWORK HEALTH
+==============================================================================
+
+--- Cluster status ---
+**************************************************************
+racnode1:
+CRS-4537: Cluster Ready Services is online
+CRS-4529: Cluster Synchronization Services is online
+CRS-4533: Event Manager is online
+**************************************************************
+racnode2:
+CRS-4537: Cluster Ready Services is online
+CRS-4529: Cluster Synchronization Services is online
+CRS-4533: Event Manager is online
+**************************************************************
+
+--- Cluster nodes ---
+racnode1        1       Active  Unpinned
+racnode2        2       Active  Unpinned
+
+--- Cluster resources ---
+--------------------------------------------------------------------------------
+Name           Target  State        Server                   State details
+--------------------------------------------------------------------------------
+Local Resources
+--------------------------------------------------------------------------------
+ora.LISTENER.lsnr
+               ONLINE  ONLINE       racnode1                 STABLE
+               ONLINE  ONLINE       racnode2                 STABLE
+ora.chad
+               ONLINE  ONLINE       racnode1                 STABLE
+               ONLINE  ONLINE       racnode2                 STABLE
+ora.helper
+               OFFLINE OFFLINE      racnode1                 IDLE,STABLE
+               OFFLINE OFFLINE      racnode2                 IDLE,STABLE
+ora.net1.network
+               ONLINE  ONLINE       racnode1                 STABLE
+               ONLINE  ONLINE       racnode2                 STABLE
+ora.ons
+               ONLINE  ONLINE       racnode1                 STABLE
+               ONLINE  ONLINE       racnode2                 STABLE
+--------------------------------------------------------------------------------
+Cluster Resources
+--------------------------------------------------------------------------------
+ora.ASMNET1LSNR_ASM.lsnr(ora.asmgroup)
+      1        ONLINE  ONLINE       racnode1                 STABLE
+      2        ONLINE  ONLINE       racnode2                 STABLE
+ora.DATA.dg(ora.asmgroup)
+      1        ONLINE  ONLINE       racnode1                 STABLE
+      2        ONLINE  ONLINE       racnode2                 STABLE
+ora.FRA.dg(ora.asmgroup)
+      1        ONLINE  ONLINE       racnode1                 STABLE
+      2        ONLINE  ONLINE       racnode2                 STABLE
+ora.LISTENER_SCAN1.lsnr
+      1        ONLINE  ONLINE       racnode1                 STABLE
+ora.LISTENER_SCAN2.lsnr
+      1        ONLINE  ONLINE       racnode1                 STABLE
+ora.LISTENER_SCAN3.lsnr
+      1        ONLINE  ONLINE       racnode2                 STABLE
+ora.OCR.dg(ora.asmgroup)
+      1        ONLINE  ONLINE       racnode1                 STABLE
+      2        ONLINE  ONLINE       racnode2                 STABLE
+ora.asm(ora.asmgroup)
+      1        ONLINE  ONLINE       racnode1                 Started,STABLE
+      2        ONLINE  ONLINE       racnode2                 Started,STABLE
+ora.asmnet1.asmnetwork(ora.asmgroup)
+      1        ONLINE  ONLINE       racnode1                 STABLE
+      2        ONLINE  ONLINE       racnode2                 STABLE
+ora.cdp1.cdp
+      1        OFFLINE OFFLINE                               STABLE
+ora.cdp2.cdp
+      1        OFFLINE OFFLINE                               STABLE
+ora.cdp3.cdp
+      1        OFFLINE OFFLINE                               STABLE
+ora.cvu
+      1        ONLINE  ONLINE       racnode1                 STABLE
+ora.cvuhelper
+      1        OFFLINE OFFLINE                               STABLE
+ora.rac.db
+      1        ONLINE  ONLINE       racnode1                 Open,HOME=/u01/app/o
+                                                             racle/product/23.26/
+                                                             dbhome_1,STABLE
+      2        ONLINE  ONLINE       racnode2                 Open,HOME=/u01/app/o
+                                                             racle/product/23.26/
+                                                             dbhome_1,STABLE
+ora.rac.rac_racpdb1.svc
+      1        ONLINE  ONLINE       racnode1                 STABLE
+      2        ONLINE  ONLINE       racnode2                 STABLE
+ora.rac.racpdb1.pdb
+      1        ONLINE  ONLINE       racnode1                 READ WRITE,STABLE
+      2        ONLINE  ONLINE       racnode2                 READ WRITE,STABLE
+ora.racnode1.vip
+      1        ONLINE  ONLINE       racnode1                 STABLE
+ora.racnode2.vip
+      1        ONLINE  ONLINE       racnode2                 STABLE
+ora.rhpserver
+      1        OFFLINE OFFLINE                               STABLE
+ora.scan1.vip
+      1        ONLINE  ONLINE       racnode1                 STABLE
+ora.scan2.vip
+      1        ONLINE  ONLINE       racnode1                 STABLE
+ora.scan3.vip
+      1        ONLINE  ONLINE       racnode2                 STABLE
+--------------------------------------------------------------------------------
+
+--- SCAN status ---
+SCAN VIP scan1 is enabled
+SCAN VIP scan1 is running on node racnode1
+SCAN VIP scan2 is enabled
+SCAN VIP scan2 is running on node racnode1
+SCAN VIP scan3 is enabled
+SCAN VIP scan3 is running on node racnode2
+
+--- SCAN listeners ---
+SCAN Listener LISTENER_SCAN1 is enabled
+SCAN listener LISTENER_SCAN1 is running on node racnode1
+SCAN Listener LISTENER_SCAN2 is enabled
+SCAN listener LISTENER_SCAN2 is running on node racnode1
+SCAN Listener LISTENER_SCAN3 is enabled
+SCAN listener LISTENER_SCAN3 is running on node racnode2
+
+--- Node listeners ---
+Listener LISTENER is enabled
+Listener LISTENER is running on node(s): racnode2,racnode1
+
+--- VIP racnode1 ---
+VIP 192.168.56.111 is enabled
+VIP 192.168.56.111 is running on node: racnode1
+
+--- VIP racnode2 ---
+VIP 192.168.56.112 is enabled
+VIP 192.168.56.112 is running on node: racnode2
+
+==============================================================================
+RAC DATABASE HEALTH
+==============================================================================
+
+--- Database configuration ---
+Database unique name: RAC
+Database name: RAC
+Oracle home: /u01/app/oracle/product/23.26/dbhome_1
+Oracle user: oracle
+Spfile: +DATA/RAC/PARAMETERFILE/spfile.272.1247029963
+Password file: +DATA/RAC/PASSWORD/pwdrac.256.1247029335
+Domain:
+Start options: open
+Stop options: immediate
+Database role: PRIMARY
+Management policy: AUTOMATIC
+Server pools:
+Disk Groups: FRA,DATA
+Mount point paths:
+Services: RAC_RACPDB1
+Type: RAC
+Start concurrency:
+Stop concurrency:
+OSDBA group: dba
+OSOPER group: oper
+Database instances: RAC1,RAC2
+Configured nodes: racnode1,racnode2
+CSS critical: no
+CPU count: 0
+Memory target: 0
+Maximum memory: 0
+Default network number for database services:
+Database is administrator managed
+
+--- Database status ---
+Instance RAC1 is running on node racnode1 with online services RAC_RACPDB1. Instance status: Open,HOME=/u01/app/oracle/product/23.26/dbhome_1.
+Instance RAC2 is running on node racnode2 with online services RAC_RACPDB1. Instance status: Open,HOME=/u01/app/oracle/product/23.26/dbhome_1.
+
+--- Database services ---
+Service RAC_RACPDB1 is running on instances RAC1,RAC2
+
+--- SQL validation ---
+INST|1|RAC1|racnode1|OPEN|ACTIVE
+INST|2|RAC2|racnode2|OPEN|ACTIVE
+CDB|RAC|READ WRITE
+DBUNQ|RAC
+DBTYPE|YES
+PDB|1|PDB$SEED|READ ONLY
+PDB|1|RACPDB1|READ WRITE
+PDB|2|PDB$SEED|READ ONLY
+PDB|2|RACPDB1|READ WRITE
+LOG|ARCHIVELOG
+FRA|+FRA|4.4
+VERSION|23.26.1.0.0
+TRACE|/u01/app/oracle/diag/rdbms/rac/RAC1/trace
+
+==============================================================================
+ASM HEALTH
+==============================================================================
+
+--- ASM status ---
+ASM is running on racnode2,racnode1
+ASM is enabled.
+ASM instance +ASM1 is running on node racnode1
+Number of connected clients: 2
+Client names: RAC1:RAC:raccluster racnode1:_OCR:raccluster
+ASM instance +ASM2 is running on node racnode2
+Number of connected clients: 2
+Client names: RAC2:RAC:raccluster racnode2:_OCR:raccluster
+
+--- ASM diskgroups ---
+State    Type    Rebal  Sector  Logical_Sector  Block       AU  Total_MB  Free_MB  Req_mir_free_MB  Usable_file_MB  Offline_disks  Voting_files  Name
+MOUNTED  EXTERN  N         512             512   4096  4194304     40960    35920                0           35920              0             N  DATA/
+MOUNTED  EXTERN  N         512             512   4096  4194304     30720    29428                0           29428              0             N  FRA/
+MOUNTED  EXTERN  N         512             512   4096  4194304     20480    20116                0           20116              0             Y  OCR/
+
+--- ASM SQL validation ---
+ASM_INST|1|+ASM1|racnode1
+ASM_INST|2|+ASM2|racnode2
+ASM_DG|1|DATA|MOUNTED|40960|35920|0|35920
+ASM_DG|1|FRA|MOUNTED|30720|29428|0|29428
+ASM_DG|1|OCR|MOUNTED|20480|20116|0|20116
+ASM_DG|2|DATA|MOUNTED|40960|35920|0|35920
+ASM_DG|2|FRA|MOUNTED|30720|29428|0|29428
+ASM_DG|2|OCR|MOUNTED|20480|20116|0|20116
+ASM_DISK|1|/dev/asm-disk1|MEMBER|CACHED|ONLINE|NORMAL|1
+ASM_DISK|1|/dev/asm-disk2|MEMBER|CACHED|ONLINE|NORMAL|2
+ASM_DISK|1|/dev/asm-disk3|MEMBER|CACHED|ONLINE|NORMAL|3
+ASM_DISK|2|/dev/asm-disk1|MEMBER|CACHED|ONLINE|NORMAL|1
+ASM_DISK|2|/dev/asm-disk2|MEMBER|CACHED|ONLINE|NORMAL|2
+ASM_DISK|2|/dev/asm-disk3|MEMBER|CACHED|ONLINE|NORMAL|3
+TRACE|/u01/app/grid/diag/asm/+asm/+ASM1/trace
+
+==============================================================================
+LOCAL DBCA AND ALERT REVIEW
+==============================================================================
+Local node only; run on each node for its local history. Bounded samples are not exhaustive.
+
+Latest local DBCA log: /u01/app/oracle/cfgtoollogs/dbca/RAC/trace.log_2026-10-19_04-30-22AM_357189
+INFO: [2026-10-19 05:21:50.099 CDT][progressPage.flowWorker][ProgressPane.log:352] Setup completed with overall status as Succeeded
+INFO: [2026-10-19 05:21:50.099 CDT][progressPage.flowWorker][AssistantAdvisor.logMessage:150] DBCA_PROGRESS : 100%
+
+--- Local alert: /u01/app/oracle/diag/rdbms/rac/RAC1/trace/alert_RAC1.log ---
+Last 2000 lines only; lookback 24h. Counts: {'IN WINDOW': 126, 'HISTORICAL': 0, 'UNDATED': 0, 'FUTURE': 0}
+Error-code matching-line counts in window (not incident counts): {'ORA-01110': 21, 'ORA-01565': 21, 'ORA-27037': 28, 'ORA-19625': 7, 'ORA-00313': 8, 'ORA-00028': 1}
+Sample timestamp range: 2026-10-19T05:02:23.504608-05:00 to 2026-10-19T10:06:05.389836-05:00 (collector local timezone).
+Sample reaches window start: NO/UNKNOWN; rotated logs and gaps are not checked.
+[IN WINDOW] [2026-10-19T05:06:06.882196-05:00] ORA-00313: open failed for members of log group 1 of thread 1
+[IN WINDOW] [2026-10-19T05:06:06.882385-05:00] Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ora_384596.trc:
+[IN WINDOW] [2026-10-19T05:06:06.882385-05:00] ORA-00313: open failed for members of log group 1 of thread 1
+[IN WINDOW] [2026-10-19T05:06:06.885640-05:00] Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ora_384596.trc:
+[IN WINDOW] [2026-10-19T05:06:06.885640-05:00] ORA-00313: open failed for members of log group 2 of thread 1
+[IN WINDOW] [2026-10-19T05:06:06.885807-05:00] Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ora_384596.trc:
+[IN WINDOW] [2026-10-19T05:06:06.885807-05:00] ORA-00313: open failed for members of log group 2 of thread 1
+[IN WINDOW] [2026-10-19T05:06:06.892120-05:00] Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ora_384596.trc:
+[IN WINDOW] [2026-10-19T05:06:06.892120-05:00] ORA-00313: open failed for members of log group 1 of thread 1
+[IN WINDOW] [2026-10-19T05:06:06.897296-05:00] Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ora_384596.trc:
+[IN WINDOW] [2026-10-19T05:06:06.897296-05:00] ORA-00313: open failed for members of log group 1 of thread 1
+[IN WINDOW] [2026-10-19T05:06:06.898936-05:00] Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ora_384596.trc:
+[IN WINDOW] [2026-10-19T05:06:06.898936-05:00] ORA-00313: open failed for members of log group 2 of thread 1
+[IN WINDOW] [2026-10-19T05:06:06.899130-05:00] Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ora_384596.trc:
+[IN WINDOW] [2026-10-19T05:06:06.899130-05:00] ORA-00313: open failed for members of log group 2 of thread 1
+[IN WINDOW] [2026-10-19T05:06:13.688233-05:00] WARNING: Files may exists in db_recovery_file_dest
+[IN WINDOW] [2026-10-19T05:08:47.667295-05:00] WARNING: AQ_TM_PROCESSES is set to 0. System operation                     using non-sharded queues might be adversely affected.
+[IN WINDOW] [2026-10-19T05:08:47.667295-05:00] WARNING: AQ 12C time manager not started,                     no enabled queue
+[IN WINDOW] [2026-10-19T05:19:46.475755-05:00] RACPDB1(3):Errors in file /u01/app/oracle/diag/rdbms/rac/RAC1/trace/RAC1_ppa7_397678.trc:
+[IN WINDOW] [2026-10-19T05:19:46.475755-05:00] ORA-00028: session has been terminated
+
+--- Local alert: /u01/app/grid/diag/asm/+asm/+ASM1/trace/alert_+ASM1.log ---
+Last 2000 lines only; lookback 24h. Counts: {'IN WINDOW': 6, 'HISTORICAL': 6, 'UNDATED': 0, 'FUTURE': 0}
+Error-code matching-line counts in window (not incident counts): {'ORA-29770': 2}
+Sample timestamp range: 2026-10-18T09:34:16.994439-05:00 to 2026-10-19T05:15:32.584888-05:00 (collector local timezone).
+Sample reaches window start: YES; rotated logs and gaps are not checked.
+[IN WINDOW] [2026-10-18T13:01:48.534597-05:00] WARNING: Background operations delayed until 10/18/26 13:06:00 because ASM was not stopped cleanly and there could be disconnected client(s)
+[IN WINDOW] [2026-10-18T16:20:46.974540-05:00] WARNING: Background operations delayed until 10/18/26 16:24:53 because ASM was not stopped cleanly and there could be disconnected client(s)
+[IN WINDOW] [2026-10-19T03:44:19.256324-05:00] Errors in file /u01/app/grid/diag/asm/+asm/+ASM1/trace/+ASM1_lmhb_5448.trc  (incident=16161):
+[IN WINDOW] [2026-10-19T03:44:19.256324-05:00] ORA-29770: The global enqueue process LMS0 (OSID 5425_5439) is hung for more than 70 seconds.
+[IN WINDOW] [2026-10-19T03:44:27.620452-05:00] Errors in file /u01/app/grid/diag/asm/+asm/+ASM1/trace/+ASM1_lmhb_5448.trc  (incident=16162):
+[IN WINDOW] [2026-10-19T03:44:27.620452-05:00] ORA-29770: The global enqueue process LMON (OSID 5418) is hung for more than 70 seconds.
+[HISTORICAL] [2026-10-18T09:36:01.434798-05:00] WARNING: Disk Group OCR containing configured OCR is not mounted
+[HISTORICAL] [2026-10-18T09:36:01.434885-05:00] WARNING: Disk Group OCR containing voting files is not mounted
+[HISTORICAL] [2026-10-18T09:36:01.434885-05:00] ORA-15032: not all alterations performed
+[HISTORICAL] [2026-10-18T09:36:01.434885-05:00] ORA-15017: Disk group "OCR" cannot be mounted.
+[HISTORICAL] [2026-10-18T09:36:01.434885-05:00] ORA-15013: diskgroup "OCR" is already mounted
+[HISTORICAL] [2026-10-18T09:39:26.242831-05:00] WARNING: Background operations delayed until 10/18/26 09:42:30 because ASM was not stopped cleanly and there could be disconnected client(s)
+
+==============================================================================
+OPERATIONAL ASSESSMENT
+==============================================================================
+Coverage: OS nodes: COLLECTED
+Coverage: Clusterware: COLLECTED
+Coverage: Database SQL/services: COLLECTED
+Coverage: ASM SQL/CLI: COLLECTED
+Coverage: Local alerts: SAMPLED (LOCAL ONLY)
+Overall assessment: REVIEW REQUIRED
+Observed database instances are OPEN; check the individual instance/service findings and coverage above.
+This read-only snapshot does not establish client connectivity, tested failover, backup recoverability or certification.
+[WARNING ] [AlertLog] alert_RAC1.log: 126 matching lines in lookback; correlate events before declaring an active fault
+[WARNING ] [AlertLog] alert_+ASM1.log: 6 matching lines in lookback; correlate events before declaring an active fault
+[WARNING ] [Compatibility] racnode1: reported 23.26.1 runtime with OL9 UEK8; documented UEK8 support starts at RU 23.26.2. Review full Grid/DB patch inventories and kernel certification.
+[WARNING ] [Compatibility] racnode2: reported 23.26.1 runtime with OL9 UEK8; documented UEK8 support starts at RU 23.26.2. Review full Grid/DB patch inventories and kernel certification.
+[INFO    ] [OS:racnode1] SELinux is Permissive: AVC messages record policy violations without SELinux enforcement; no mode change performed
+[INFO    ] [OS:racnode1] Visible SELinux troubleshooting processes used up to 93.5% of one core combined in an interval. Review AVC/journal records; this does not establish the trigger or explain earlier ASM hangs.
+[INFO    ] [OS:racnode1] No paging observed during sampled intervals; allocated swap alone is not active pressure
+[INFO    ] [OS:racnode1] Explicit HugePages not configured; size against the intended SGA
+[INFO    ] [OS:racnode2] SELinux is Permissive: AVC messages record policy violations without SELinux enforcement; no mode change performed
+[INFO    ] [OS:racnode2] No paging observed during sampled intervals; allocated swap alone is not active pressure
+[INFO    ] [OS:racnode2] Explicit HugePages not configured; size against the intended SGA
+[INFO    ] [AlertLog] alert_+ASM1.log: 6 older matching lines retained as history
+[INFO    ] [Scope] Full patch inventories/certification, SCAN client login, backup/recovery and failover are not tested
+Critical findings: 0; warnings: 4
+script_exit=1
