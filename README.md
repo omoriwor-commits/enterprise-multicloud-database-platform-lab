@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository documents my Oracle-to-SQL Server migration across OCI and Azure using GoldenGate 26ai, including the cloud networking, troubleshooting and validation behind it.
+This repository documents my Oracle-to-SQL Server migration across OCI and Azure using GoldenGate 26ai, including the cloud networking, troubleshooting and validation behind it. It also hosts my Oracle RAC build runbooks, Data Guard/RAC health-check scripts and validation evidence.
 
 This is **Migration 3 — Oracle 26ai (OCI) to Azure SQL Server 2022: Heterogeneous Cross-Cloud Migration & GoldenGate Replication**, the final stage of my three-stage path (19c → 26ai on-prem, on-prem → OCI, OCI → Azure SQL Server 2022).
 
@@ -123,7 +123,7 @@ Checkpoint table:     ogg_repl.ggs_checkpoint
 
 `ogg_repl` was granted `db_owner` for the lab build. Before any production use I would scope it down to only the permissions Replicat needs.
 
-The project overview records a public-IP assignment, while the dated September checkpoint records no directly assigned public IP on the SQL Server VM. Whether those describe different build stages remains unconfirmed. Administration used the SSH/RDP tunnel via the GoldenGate hub; these records do not establish current cloud resource configuration.
+Administration used an SSH/RDP tunnel through the GoldenGate hub. These historical deployment records do not establish current cloud resource configuration.
 
 ### Azure GoldenGate Hub
 
@@ -165,6 +165,15 @@ Replication schema:            ogg_repl
 ```
 
 Both deployments are running independently.
+
+## Oracle RAC runbooks and operational checks
+
+- [Oracle 26ai two-node RAC build runbook (tested; open Verify items listed)](docs/runbooks/oracle-rac/oracle26ai-2node-rac-build-runbook.md) — completed two-node build and functional validation on October 19, 2026; remaining configuration and compatibility follow-ups are explicit.
+- [26ai RAC health evidence](docs/evidence/oracle-rac/2026-10-19-rac26-health-check-v3.md) — revision 2026-10-19.3, run as grid; zero critical findings and four review warnings.
+- [October 18 node 2 root-script VM-freeze investigation](https://github.com/omoriwor-commits/oracle-db-platform-automation/blob/main/Oracle-Database-Platform-Automation/incident-reports/2026-10-18-rac26-node2-root-script-vm-freeze.md).
+- [RAC Python health check](scripts/oracle-rac/rac_health_check.py) and [Data Guard Bash health check](scripts/dataguard/dataguard_health_check.sh).
+
+SCAN connection distribution and new-connection availability with RAC2 stopped were confirmed by the lab owner. The [evidence note](docs/evidence/oracle-rac/2026-10-19-rac26-health-check-v3.md#separate-manual-validation) distinguishes those results from the published health snapshot; the raw SCAN test transcript remains to be added. No transcript is reconstructed from expected output.
 
 ## September Checkpoint: Extract Capture (before Replicat apply)
 
