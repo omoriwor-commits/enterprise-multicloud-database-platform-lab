@@ -1,12 +1,12 @@
 # Oracle AI Database 26ai Two-Node RAC Build Runbook
 
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-20
 
 ## Overview
 
 This runbook builds a two-node Oracle AI Database 26ai RAC on Oracle Linux 9 in VirtualBox. It follows the same phases as my tested 19c runbook, updated for 26ai, with a Phase 0 added for the VirtualBox setup the 19c runbook assumed.
 
-**Status:** Draft documentation with the two-node build and functional validation completed on 2026-10-19. Phases 0–10 are built; Phase 11 checks cover both instances/PDBs, archiving, SCAN connection distribution, new connections while RAC2 is stopped, and instance/service restoration. The SCAN availability test completion is user-confirmed; its raw connection transcript is not included in this repository. The 10:46 CDT health snapshot validates database and ASM collection with zero critical findings and four warnings. Remaining **Verify** items, HugePages configuration and the documented kernel/RU compatibility gap remain open. Phase 12 is an unexercised contingency reference.
+**Status:** Tested build and functional validation; open **Verify** items listed. The two-node build and functional validation were completed on 2026-10-19; unexecuted operational procedures remain draft. Phases 0–10 are built; Phase 11 checks cover both instances/PDBs, archiving, SCAN connection distribution, new connections while RAC2 is stopped, and instance/service restoration. The SCAN availability test completion is user-confirmed; its raw connection transcript is not included in this repository. The 10:46 CDT health snapshot validates database and ASM collection with zero critical findings and four warnings. Remaining **Verify** items, HugePages configuration and the documented kernel/RU compatibility gap remain open. Phase 12 is an unexercised contingency reference.
 
 **Baseline:** [Tested Oracle 19c two-node RAC build and troubleshooting runbook](oracle19c-2node-rac-build-and-troubleshooting.md).
 

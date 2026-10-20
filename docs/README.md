@@ -32,7 +32,7 @@ This directory contains the design records, implementation notes, checkpoints, t
 
 - [Recovered Command Syntax Reference](runbooks/recovered-command-syntax-reference.md)
 - [Oracle 19c Two-Node RAC Build and Troubleshooting](runbooks/oracle-rac/oracle19c-2node-rac-build-and-troubleshooting.md)
-- [Oracle 26ai Two-Node RAC Build Runbook (draft)](runbooks/oracle-rac/oracle26ai-2node-rac-build-runbook.md)
+- [Oracle 26ai Two-Node RAC Build Runbook (tested; open Verify items listed)](runbooks/oracle-rac/oracle26ai-2node-rac-build-runbook.md)
 
 ## Documentation Standard
 
