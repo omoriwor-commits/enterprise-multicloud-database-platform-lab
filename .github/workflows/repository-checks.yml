@@ -1,0 +1,49 @@
+name: Repository checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Install validation tools
+        run: python -m pip install PyYAML==6.0.2 ruff==0.14.1
+      - name: Check YAML and local documentation links
+        run: python scripts/ci/check_repository.py
+      - name: Lint Python correctness
+        run: ruff check --select E9,F63,F7,F82 .
+      - name: Check shell scripts
+        run: |
+          while IFS= read -r -d '' script; do bash -n "$script"; done < <(git ls-files -z '*.sh')
+          shellcheck --severity=warning $(git ls-files '*.sh')
+      - name: Test RAC collector
+        run: python -m unittest discover -s scripts/oracle-rac/tests -v
+      - name: Test Data Guard collection failures
+        run: python -m unittest discover -s scripts/dataguard/tests -v
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'

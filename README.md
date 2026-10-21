@@ -164,7 +164,7 @@ Performance Metrics port:      9025
 Replication schema:            ogg_repl
 ```
 
-Both deployments are running independently.
+Both deployments ran independently during the completed lab. The cloud environment is now shut down; this is a historical configuration record.
 
 ## Oracle RAC runbooks and operational checks
 
@@ -234,3 +234,8 @@ The step-by-step rebuild and evidence capture are in the [rerun playbook](docs/o
 
 - [Oracle Database Platform Engineering](https://github.com/omoriwor-commits/oracle-db-platform-automation): portfolio hub, knowledge base and automation roadmap.
 - [Enterprise Data Platform Labs](https://github.com/omoriwor-commits/enterprise-data-platform-labs): migrations 1 and 2 (19c to 26ai, and on-premises to OCI).
+
+
+## Repository validation
+
+Pull requests run the existing RAC tests, Data Guard failure-injection tests, shell checks, Python correctness lint, YAML/local-link checks and Gitleaks scans. Fake-tool tests do not establish live Data Guard health. [Open acceptance evidence](https://github.com/omoriwor-commits/oracle-db-platform-automation/issues/24) and [RAC support/LMON investigation](https://github.com/omoriwor-commits/oracle-db-platform-automation/issues/23) retain pending execution work.
