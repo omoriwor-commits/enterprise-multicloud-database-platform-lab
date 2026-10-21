@@ -6,7 +6,9 @@ This directory contains reusable scripts developed for database platform operati
 
 - [dataguard_health_check.sh](dataguard/dataguard_health_check.sh)
 
-Purpose: operational health checking for Oracle Data Guard environments.
+Purpose: collect Oracle Data Guard operational evidence. SQL, role-discovery and broker errors now fail collection. Exit 0 means collection completed; lag/gap values still require DBA interpretation. Seven fake-tool regression tests cover unavailable databases, malformed discovery, SQL and broker errors. Live primary/standby validation remains pending.
+
+Run: `python3 -m unittest discover -s scripts/dataguard/tests -v`.
 
 ## Oracle RAC
 
@@ -25,3 +27,4 @@ printf 'script_exit=%s\n' "${PIPESTATUS[0]}"
 Grid and database homes/bases are discovered independently. Overrides and sampling options are listed by `--help`. Exit codes: 0 no findings in completed checks; 1 warnings/incomplete coverage; 2 critical findings; 3 configuration error. Database/ASM global views cover both instances; alert and DBCA history are local only. Run on node 2 for its local alert history; omit `--dbca-node racnode1` there unless reviewing creation-node expectations deliberately. A snapshot does not test SCAN client login, failover or backup recoverability.
 
 [Latest 26ai health evidence](../docs/evidence/oracle-rac/2026-10-19-rac26-health-check-v3.md). The 54 regression tests run with `python3 -m unittest discover -s scripts/oracle-rac/tests -v`.
+

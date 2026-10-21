@@ -79,31 +79,61 @@ run_cmd() {
 }
 
 sql() {
-    "$SQLPLUS" -s / as sysdba <<SQL
+    local out rc
+    out="$("$SQLPLUS" -L -s / as sysdba <<SQL
 set lines 220 pages 200 trimspool on tab off verify off feedback on
-whenever sqlerror continue
+whenever oserror exit failure rollback
+whenever sqlerror exit failure rollback
 $1
-exit
+exit success rollback
 SQL
+    )"
+    rc=$?
+    printf '%s\n' "$out"
+    if [ "$rc" -ne 0 ] || grep -Eq '(^|[[:space:]])(ORA|SP2|TNS|PLS)-[0-9]+' <<< "$out"; then
+        echo "[FAIL] SQL collection failed (exit=$rc)"
+        FAILURES=$((FAILURES + 1))
+        return 1
+    fi
 }
 
 sql_quiet() {
-    "$SQLPLUS" -s / as sysdba <<SQL
+    "$SQLPLUS" -L -s / as sysdba <<SQL
 set heading off feedback off pages 0 verify off echo off trimspool on
-whenever sqlerror exit sql.sqlcode
+whenever oserror exit failure rollback
+whenever sqlerror exit failure rollback
 $1
-exit
+exit success rollback
 SQL
 }
 
 discover_role() {
     local out
-    out="$(sql_quiet "select database_role||'|'||db_unique_name||'|'||open_mode from v\$database;" 2>/dev/null || true)"
-    if [ -n "$out" ]; then
-        IFS='|' read -r DB_ROLE DB_UNIQUE_NAME OPEN_MODE <<< "$(echo "$out" | head -1)"
-        DB_ROLE="$(echo "$DB_ROLE" | xargs)"
-        DB_UNIQUE_NAME="$(echo "$DB_UNIQUE_NAME" | xargs)"
-        OPEN_MODE="$(echo "$OPEN_MODE" | xargs)"
+    if ! out="$(sql_quiet "select database_role||'|'||db_unique_name||'|'||open_mode from v\$database;" 2>&1)"; then
+        echo "[FAIL] Database identity query failed: $out"
+        FAILURES=$((FAILURES + 1))
+        return 1
+    fi
+    out="$(printf '%s\n' "$out" | sed '/^[[:space:]]*$/d;s/^[[:space:]]*//;s/[[:space:]]*$//')"
+    if ! grep -Eq '^(PRIMARY|PHYSICAL STANDBY|LOGICAL STANDBY|SNAPSHOT STANDBY)\|[A-Za-z0-9_.$#-]+\|[A-Z /]+[[:space:]]*$' <<< "$out" ||
+       [ "$(printf '%s\n' "$out" | wc -l)" -ne 1 ]; then
+        echo "[FAIL] Database identity result is missing or malformed"
+        FAILURES=$((FAILURES + 1))
+        return 1
+    fi
+    IFS='|' read -r DB_ROLE DB_UNIQUE_NAME OPEN_MODE <<< "$out"
+    OPEN_MODE="$(echo "$OPEN_MODE" | xargs)"
+}
+
+broker() {
+    local out rc
+    out="$("$DGMGRL" / 2>&1)"
+    rc=$?
+    printf '%s\n' "$out"
+    if [ "$rc" -ne 0 ] || grep -Eq '(^|[[:space:]])(ORA|DGM)-[0-9]+' <<< "$out"; then
+        echo "[FAIL] Broker collection reported an error (exit=$rc)"
+        FAILURES=$((FAILURES + 1))
+        return 1
     fi
 }
 
@@ -523,14 +553,14 @@ check_broker() {
        [ "$STANDBY_DB_UNIQUE_NAME" = "STANDBY_DB_UNIQUE_NAME" ]; then
         echo "[INFO] Broker DB_UNIQUE_NAME placeholders not replaced."
         echo "       Running SHOW CONFIGURATION only."
-        "$DGMGRL" / <<DGMGRL
+        broker <<DGMGRL
 show configuration;
 exit;
 DGMGRL
         return
     fi
 
-    "$DGMGRL" / <<DGMGRL
+    broker <<DGMGRL
 show configuration;
 show database verbose '$PRIMARY_DB_UNIQUE_NAME';
 show database verbose '$STANDBY_DB_UNIQUE_NAME';
@@ -745,7 +775,8 @@ final_summary() {
     echo "DB unique name:      $DB_UNIQUE_NAME"
     echo "Open mode:           $OPEN_MODE"
     echo "Warnings encountered: $WARNINGS"
-    echo "Tool/pre-flight failures: $FAILURES"
+    echo "Collection/pre-flight failures: $FAILURES"
+    echo "This is a command pack: successful collection is not a Data Guard health verdict."
 
     if [ "$FAILURES" -gt 0 ]; then
         echo "Overall script status: ATTENTION REQUIRED"
@@ -769,7 +800,12 @@ main() {
         exit $?
     fi
 
-    discover_role
+    # Local OS authentication must not inherit a remote SQL*Plus redirect.
+    unset TWO_TASK LOCAL
+    if ! discover_role; then
+        final_summary
+        exit $?
+    fi
 
     echo
     echo "Detected database context:"
@@ -810,3 +846,4 @@ main() {
 }
 
 main "$@"
+
