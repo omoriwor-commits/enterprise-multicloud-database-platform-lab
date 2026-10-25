@@ -117,6 +117,8 @@ The 19c runbook assumed this was already done. Every later phase depends on it.
 
    Bad: `HM: HMR3Init: Attempting fall back to NEM: VT-x is not available` and `NEM: NEMR3Init: Snail execution mode is active!` Good: `HM: HMR3Init: VT-x w/ nested paging and unrestricted guest execution hw support`
 
+   This host setting was the root cause of both of my RAC incidents (19c and 26ai). Check VBox.log before any long step.
+
    Fix (admin PowerShell), with all VMs powered off and Docker Desktop quit:
 
    ```powershell
