@@ -6,6 +6,10 @@
 
 ---
 
+## Host prerequisite
+
+On a Windows host, make sure the Hyper-V hypervisor is off (`bcdedit /set hypervisorlaunchtype off`, then reboot). If it is on, VirtualBox runs in slow 'snail mode' and the RAC VMs can freeze or be starved of CPU. This was the root cause of my October 2026 node 2 incident. Check VBox.log for 'Snail execution mode' or 'VT-x is not available'.
+
 ## Assumptions
 
 ```text
