@@ -123,7 +123,7 @@ Checkpoint table:     ogg_repl.ggs_checkpoint
 
 `ogg_repl` was granted `db_owner` for the lab build. Before any production use I would scope it down to only the permissions Replicat needs.
 
-Administration used an SSH/RDP tunnel through the GoldenGate hub. These historical deployment records do not establish current cloud resource configuration.
+I administered the SQL Server VM privately, through an SSH/RDP tunnel via the GoldenGate hub.
 
 ### Azure GoldenGate Hub
 
@@ -229,6 +229,12 @@ While the environment was running:
 ## Rerun
 
 The step-by-step rebuild and evidence capture are in the [rerun playbook](docs/oci-to-azure-goldengate-rerun-playbook.md).
+
+## Also in this repository
+
+- [Oracle 26ai two-node RAC build runbook](docs/runbooks/oracle-rac/oracle26ai-2node-rac-build-runbook.md) (tested; open Verify items listed)
+- [Oracle 19c two-node RAC build and troubleshooting runbook](docs/runbooks/oracle-rac/oracle19c-2node-rac-build-and-troubleshooting.md)
+- [RAC and Data Guard health-check scripts](scripts/README.md)
 
 ## Related Repositories
 
