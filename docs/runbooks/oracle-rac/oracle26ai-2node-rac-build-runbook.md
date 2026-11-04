@@ -297,7 +297,7 @@ sed -i 's/^SELINUX=.*/SELINUX=permissive/' /etc/selinux/config
 getenforce
 ```
 
-Record the SELinux mode you end up using. The earlier October 2026 19c node 2 incident ended with SELinux disabled and an unconfirmed root cause; it is separate from this 26ai build.
+Record the SELinux mode you end up using. The earlier 19c node 2 incident's host cause was subsequently confirmed by the lab owner as Hyper-V/VirtualBox snail mode. SELinux was disabled during that investigation, but no specific SELinux denial was established as its cause; final cluster-wide recovery of the retired 19c VMs was not verified. Keep that incident separate from this 26ai build and the later unresolved LMON event.
 
 8. Install the 26ai preinstall RPM, update packages, then reboot.
 
